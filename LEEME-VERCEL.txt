@@ -1,0 +1,23 @@
+PUBLICAR EL DASHBOARD BAT EN VERCEL
+
+Esta carpeta ya contiene el dashboard y la función Node.js para consultar las hojas
+de Google Sheets publicadas. El archivo vercel.json hace que la dirección principal
+abra dashboard-bat.html.
+
+Publicación recomendada:
+1. Sube el contenido completo de esta carpeta a un repositorio privado de GitHub.
+   Conserva la carpeta api y los archivos vercel.json y dashboard-bat.html.
+2. En vercel.com, inicia sesión y elige Add New > Project.
+3. Importa ese repositorio de GitHub.
+4. Si el repositorio contiene únicamente estos archivos, deja Root Directory en ./
+   y los campos Build Command y Output Directory en sus valores automáticos/vacíos.
+   No selecciones un framework.
+5. Selecciona Deploy. Vercel publicará el HTML y ejecutará api/google-sheets.py
+   como la ruta /api/google-sheets.
+
+Después de desplegar, abre la URL de Vercel y usa Cargador > Actualizar desde
+Google Sheets. Las hojas deben seguir publicadas para que la función pueda leerlas.
+
+Abrir dashboard-bat.html directamente con file:// no ejecuta funciones del servidor.
+El archivo Abrir dashboard BAT.bat y dashboard_server.py siguen sirviendo para uso
+local; en Vercel no es necesario ejecutar el servidor local.
