@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Indicadores de Gestión · BAT</title>
+<!-- Librerías Externas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#003087;
+    --navy-2:#00236B;
+    --panel:#FFFFFF;
+    --bg:#F2F5FA;
+    --line:#D0D8EC;
+    --amber:#0057B8;
+    --gold:#0057B8;
+    --teal:#00A3E0;
+    --red:#D0021B;
+    --green:#1A7A3C;
+    --ink:#1A1A1A;
+    --muted:#5A6A8A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);text-align:left;}
+  
+  .sticky-shell{position:sticky;top:0;z-index:60;box-shadow:0 4px 18px rgba(0,0,0,.2);}
+  header.top{
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);
+    color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;
+    position:relative;z-index:auto;box-shadow:none;border-bottom:3px solid var(--gold);
+    flex-wrap: wrap; gap: 12px;
+  }
+  .brand{display:flex;align-items:center;gap:16px;}
+  .logo-badge{
+    width:46px;height:46px;border-radius:10px;background:#fff;color:#003087;
+    display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;font-size:15px;letter-spacing:.5px;flex-shrink:0;border:2px solid #0057B8;
+  }
+  header.top h1{
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:21px;letter-spacing:.5px;
+    margin:0;text-transform:uppercase;color:#fff;text-align:left;
+  }
+  header.top .tag{font-size:11px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-top:2px;font-weight:600;text-align:left;}
+  
+  .header-controls{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  }
+  
+  .btn-upload{
+    background:#00A3E0;color:#fff;border:none;padding:8px 16px;border-radius:8px;
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;
+    cursor:pointer;display:flex;align-items:center;gap:8px;transition:.2s;
+  }
+  .btn-upload:hover{background:#0082b3;}
+  .btn-pdf{background:#F2B705;color:#003087;border:none;padding:9px 15px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;}
+  .btn-pdf:hover{background:#ffd447;}
+  .upload-menu{position:relative;}
+  .upload-panel{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:310px;padding:14px;background:#00236B;border:1px solid rgba(255,255,255,.2);border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.25);gap:9px;flex-direction:column;}
+  .upload-menu:hover .upload-panel,.upload-menu:focus-within .upload-panel{display:flex;}
+  .upload-panel .btn-upload{width:100%;justify-content:center;}
+
+  .status-pill{
+    display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:6px 14px;font-size:12px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px rgba(31,182,165,.25);}
+  
+  /* BARRA DE CATEGORÍAS PRINCIPALES */
+  .category-bar{
+    background:var(--navy);padding:8px 20px 0;display:flex;gap:8px;border-bottom:1px solid rgba(255,255,255,.15);
+  }
+  .category-btn{
+    background:rgba(255,255,255,.1);border:none;color:#d0d8ec;padding:10px 20px;
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:.5px;
+    border-radius:8px 8px 0 0;cursor:pointer;transition:.15s;text-align:left;
+  }
+  .category-btn:hover{background:rgba(255,255,255,.2);color:#fff;}
+  .category-btn.active{background:var(--navy-2);color:#fff;border-top:3px solid var(--teal);}
+
+  /* BARRA DE SUB-PESTAÑAS */
+  nav.tabs{
+    display:flex;gap:4px;overflow-x:auto;background:var(--navy-2);padding:0 20px;
+    border-bottom:1px solid rgba(255,255,255,.08);position:relative;z-index:40;
+  }
+  nav.tabs button{
+    background:none;border:none;color:#A9B3CC;padding:12px 16px;font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;font-size:14px;letter-spacing:.3px;cursor:pointer;white-space:nowrap;
+    border-bottom:3px solid transparent;transition:.15s;text-align:left;
+  }
+  nav.tabs button:hover{color:#fff;}
+  nav.tabs button.active{color:#fff;border-bottom-color:var(--teal);}
+  
+  main{padding:24px 28px 60px;max-width:1320px;margin:0 auto;text-align:left;}
+  .section{display:none;}
+  .section.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  
+  .section-head{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;text-align:left;}
+  .section-head div{text-align:left;}
+  .section-head h2{
+    font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;margin:0;color:var(--navy);text-align:left;
+  }
+  .section-head .eyebrow{font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:2px;text-align:left;}
+  
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-start;}
+  select{
+    font-family:'Inter',sans-serif;font-size:13px;padding:8px 12px;border:1px solid var(--line);
+    border-radius:8px;background:#fff;color:var(--ink);cursor:pointer;text-align:left;
+  }
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:left;
+  }
+  .kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;text-align:left;}
+  .kpi .value{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;margin-top:4px;text-align:left;}
+  .kpi .value.good{color:var(--teal);}
+  .kpi .value.bad{color:var(--red);}
+  .kpi .value.neutral{color:var(--navy);}
+  
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px;text-align:left;
+  }
+  .card h3{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600;margin:0 0 12px;color:var(--navy);text-align:left;}
+  .chart-wrap{position:relative;height:420px;padding:8px 4px 0;}
+  .chart-wrap.full{height:440px;}
+  .chart-wrap.mini{height:270px;}
+  
+  table{width:100%;border-collapse:collapse;font-size:12.5px;text-align:left;}
+  table th{
+    background:var(--navy);color:#fff;padding:8px 10px;text-align:left;font-weight:600;
+    font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px;position:sticky;top:0;
+  }
+  table td{padding:7px 10px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;text-align:left;}
+  table tbody tr:hover{background:#F7F9FC;}
+  .table-scroll{max-height:420px;overflow:auto;border-radius:8px;border:1px solid var(--line);}
+  .summary-table{width:100%;min-width:0;table-layout:fixed;}
+  .summary-table th,.summary-table td{width:5.88%;padding:7px 4px;text-align:center;white-space:normal;overflow-wrap:anywhere;word-break:normal;font-size:10px;}
+  .summary-table th{line-height:1.2;}
+  .summary-table th:nth-child(n+3):nth-child(-n+7){background:#0057B8;}
+  .summary-table th:nth-child(n+8):nth-child(-n+12){background:#478A43;}
+  .summary-table th:nth-child(n+13):nth-child(-n+17){background:#B77900;}
+  .summary-table td:nth-child(n+3):nth-child(-n+7){background:#EEF5FF;}
+  .summary-table td:nth-child(n+8):nth-child(-n+12){background:#F0F8EF;}
+  .summary-table td:nth-child(n+13):nth-child(-n+17){background:#FFF8E6;}
+  .detail-table{min-width:1250px;}
+  .detail-table th,.detail-table td{vertical-align:top;}
+  .detail-table td:last-child{font-family:'Inter',sans-serif;min-width:360px;max-width:560px;white-space:normal;line-height:1.45;}
+  
+  .state{padding:60px 20px;text-align:left;color:var(--muted);font-size:14px;}
+  .state.error{color:var(--red);}
+  .kpi-row.compact{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+  .metric-badge{display:inline-block;border-radius:5px;padding:3px 7px;font-weight:700;white-space:nowrap;}
+  .metric-badge.yellow{background:#FFF1A8;color:#533F00;}
+  .metric-badge.red{background:#FAD6D6;color:#8A1010;}
+  .metric-badge.blue{background:#DCEBFF;color:#003087;}
+  @media(max-width:700px){.sticky-shell{position:sticky}.header-controls{width:100%}.upload-panel{left:0;right:auto}main{padding:18px 14px}.chart-wrap{height:340px}.chart-wrap.full{height:360px}}
+  #pdf-report{display:none;}
+  .preparing-pdf .sticky-shell{position:static;box-shadow:none;}
+  .preparing-pdf .category-bar,.preparing-pdf nav.tabs,.preparing-pdf #main{display:none!important;}
+  .preparing-pdf .header-controls{display:none!important;}
+  .preparing-pdf #pdf-report{display:block!important;padding:12px 18px;}
+  .preparing-pdf #pdf-report .section{display:block!important;animation:none!important;break-before:auto;page-break-before:auto;margin:0 0 10px;}
+  .preparing-pdf #pdf-report .section-head{margin-bottom:8px;}
+  .preparing-pdf #pdf-report .section-head h2{font-size:20px;}
+  .preparing-pdf #pdf-report .pdf-category + .pdf-category{break-before:page;page-break-before:always;}
+  .preparing-pdf #pdf-report .card{break-inside:avoid;page-break-inside:avoid;box-shadow:none;padding:11px 13px;margin-bottom:9px;border-radius:9px;}
+  .preparing-pdf #pdf-report .card h3{font-size:14px;margin-bottom:6px;}
+  .preparing-pdf #pdf-report .kpi-row{gap:7px;margin-bottom:9px;}
+  .preparing-pdf #pdf-report .kpi{padding:8px 10px;border-radius:8px;}
+  .preparing-pdf #pdf-report .kpi .value{font-size:20px;}
+  .preparing-pdf #pdf-report .card.pdf-breakable{break-inside:auto;page-break-inside:auto;}
+  .preparing-pdf #pdf-report table tbody tr{break-inside:avoid;page-break-inside:avoid;}
+  .preparing-pdf #pdf-report .chart-wrap,.preparing-pdf #pdf-report .chart-wrap.full{height:235px;padding:2px 2px 0;}
+  .preparing-pdf #pdf-report .table-scroll{max-height:none;overflow:visible;border:0;}
+  .preparing-pdf #pdf-report table{font-size:8px;}
+  .preparing-pdf #pdf-report table th,.preparing-pdf #pdf-report table td{padding:4px 5px;}
+  .preparing-pdf #pdf-report table thead{display:table-header-group;}
+  .preparing-pdf #pdf-report .detail-table{min-width:0;table-layout:fixed;width:100%;font-size:7px;}
+  .preparing-pdf #pdf-report .detail-table th,.preparing-pdf #pdf-report .detail-table td{padding:4px 3px;overflow-wrap:anywhere;}
+  .preparing-pdf #pdf-report .detail-table td:last-child{min-width:0;max-width:none;font-size:7px;}
+  .pdf-report-header{padding:4px 4px 8px;border-bottom:2px solid #003087;margin-bottom:8px;color:#003087;}
+  .pdf-report-header h1{font-family:'Barlow Condensed',sans-serif;font-size:22px;margin:0 0 3px;text-transform:uppercase;}
+  .pdf-report-header p{font-size:10px;margin:0;color:#58657a;}
+  .pdf-category-title{font-family:'Barlow Condensed',sans-serif;font-size:19px;color:#003087;margin:5px 0 8px;}
+  @media print{
+    @page{size:A4 landscape;margin:7mm;}
+    body.preparing-pdf{background:#fff!important;color:#1a1a1a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    body.preparing-pdf #pdf-report{padding:0;}
+    body.preparing-pdf .card{border-color:#ccd6e8!important;}
+    body.preparing-pdf .kpi,body.preparing-pdf .pdf-report-header{break-inside:avoid;}
+    body.preparing-pdf tr{break-inside:avoid;page-break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-shell">
+<header class="top">
+  <div class="brand">
+    <div class="logo-badge">BAT</div>
+    <div style="text-align:left;">
+      <h1>Dashboard - Indicadores de Gestión Operación BAT</h1>
+      <div class="tag">Liftit Cargo SAS · Cliente BAT - British American Tobacco</div>
+    </div>
+  </div>
+  <div class="header-controls">
+    <button type="button" class="btn-pdf" id="downloadPdfBtn" onclick="downloadDashboardPDF()">⬇ Descargar informe PDF</button>
+    <div class="upload-menu" tabindex="0">
+      <button class="btn-upload" type="button">📁 Cargador</button>
+      <div class="upload-panel">
+        <label for="transportFile" class="btn-upload">Cargar Excel Transporte</label>
+        <input type="file" id="transportFile" accept=".xlsx,.xls" style="display:none;" />
+        <button type="button" class="btn-upload" onclick="loadPublishedSheets('transporte')">Actualizar desde Google Sheets · Transporte</button>
+        <div class="status-pill"><span class="status-dot"></span><span id="transportSync">Sin archivo de transporte</span></div>
+        <label for="storageFile" class="btn-upload">Cargar Excel Almacenamiento</label>
+        <input type="file" id="storageFile" accept=".xlsx,.xls" style="display:none;" />
+        <button type="button" class="btn-upload" onclick="loadPublishedSheets('almacenamiento')">Actualizar desde Google Sheets · Almacenamiento</button>
+        <div class="status-pill"><span class="status-dot"></span><span id="storageSync">Sin archivo de almacenamiento</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- NIVEL 1: CATEGORÍAS PRINCIPALES -->
+<div class="category-bar">
+  <button class="category-btn active" id="btnCatTransporte" onclick="switchCategory('transporte')">1. TRANSPORTE</button>
+  <button class="category-btn" id="btnCatAlmacenamiento" onclick="switchCategory('almacenamiento')">2. ALMACENAMIENTO</button>
+</div>
+
+<!-- NIVEL 2: SUB-PESTAÑAS -->
+<nav class="tabs" id="tabsNav"></nav>
+</div>
+
+<main id="main"></main>
+<div id="pdf-report" aria-hidden="true"></div>
+
+<script>
+let localWorkbookData = {transporte:{},almacenamiento:{}};
+let localWorkbookNames = {transporte:[],almacenamiento:[]};
+let currentCategory = 'transporte';
+
+const CATEGORIES = {
+  transporte: {
+    label: "1. Transporte",
+    tabs: [
+      { id: 'general',             label: '1. Estado general operación BAT', sheetIndex: 0 },
+      { id: 'ontime',              label: '1.1 Ontime',               sheetIndex: 1 },
+      { id: 'infull',              label: '1.2 In Full',              sheetIndex: 2 },
+      { id: 'efectividad',         label: '1.3 % Efectividad',         sheetIndex: 3 },
+      { id: 'retorno',             label: '1.4 % Retorno Documental',  sheetIndex: 4 },
+      { id: 'averias',             label: '1.5 Averías / Hurtos', sheetIndex: 6 }
+    ]
+  },
+  almacenamiento: {
+    label: "2. Almacenamiento",
+    tabs: [
+      { id: 'inventario_ciclico',  label: '2.1 % Inventario Cíclico', sheetIndex: 0 },
+      { id: 'ocupacion_bodega',    label: '2.2 % Ocupación Bodega Día Celta', sheetIndex: 1 },
+      { id: 'cantidad_ingresos',   label: '2.3 Cantidad de Ingresos', sheetIndex: 2 },
+      { id: 'armado_cigarrillos', label: '2.4 Armado Cigarrillos Celta', sheetIndex: 3 }
+    ]
+  }
+};
+
+const PALETTE = ['#003087','#0057B8','#00A3E0','#5A6A8A','#D0021B','#00236B','#7BA7D4'];
+Chart.register(ChartDataLabels);
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.plugins.datalabels = Chart.defaults.plugins.datalabels || {};
+
+const FULL_MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function parseNum(v){
+  if(v===undefined||v===null) return null;
+  let s = String(v).trim();
+  if(s==='' || s==='-' || s.toLowerCase()==='n/a') return null;
+  const hadPct = s.includes('%');
+  s = s.replace(/%/g,'').replace(/\$/g,'').replace(/\s/g,'').replace(/COP/gi,'');
+  if(s.includes(',') && s.includes('.')){
+    if(s.lastIndexOf(',') > s.lastIndexOf('.')){
+      s = s.replace(/\./g,'').replace(',', '.');
+    } else {
+      s = s.replace(/,/g,'');
+    }
+  } else if(s.includes(',')){
+    const parts = s.split(',');
+    if(parts.length===2 && parts[1].length===3 && parts[0].length>0){
+      s = s.replace(',','');
+    } else {
+      s = s.replace(',', '.');
+    }
+  } else if(s.includes('.')){
+    const parts = s.split('.');
+    if(parts.length > 2){
+      s = s.replace(/\./g,'');
+    } else if(parts.length === 2 && parts[1].length === 3 && parseInt(parts[0]) > 9){
+      s = s.replace('.','');
+    }
+  }
+  const n = parseFloat(s);
+  if(isNaN(n)) return null;
+  if(hadPct && Math.abs(n) > 1) return n/100;
+  return n;
+}
+
+function fmtPct(n){ return n===null?'—':(n*100).toLocaleString('es-CO',{maximumFractionDigits:1})+'%'; }
+function fmtNum(n){ return n===null?'—':n.toLocaleString('es-CO',{maximumFractionDigits:1}); }
+function fmtCOP(n){ if(n===null||n===0) return '$0'; return '$'+Math.round(n).toLocaleString('es-CO',{maximumFractionDigits:0}); }
+
+function lineDL(color, formatter, textColor){
+  return {
+    display:true,
+    backgroundColor: color,
+    borderRadius: 4,
+    color: textColor || '#ffffff',
+    padding: {top:3, bottom:3, left:6, right:6},
+    font: {size:10, weight:'700'},
+    anchor:'end',
+    align:'top',
+    formatter: formatter
+  };
+}
+
+function findKey(row, ...candidates){
+  if(!row) return null;
+  const keys = Object.keys(row);
+  const norm=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  for(const c of candidates){
+    const k = keys.find(k => norm(k) === norm(c));
+    if(k) return k;
+  }
+  for(const c of candidates){
+    const k = keys.find(k => norm(k).includes(norm(c)));
+    if(k) return k;
+  }
+  return null;
+}
+
+const MONTH_ORDER = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function monthIndex(m){
+  if(!m) return 99;
+  const s = String(m).toLowerCase().trim();
+  const i = MONTH_ORDER.findIndex(mo => s.startsWith(mo.slice(0,3)));
+  return i===-1?99:i;
+}
+
+async function getSheetData(tabIndex, source='transporte'){
+  return localWorkbookData[source]?.[tabIndex] || [];
+}
+
+function monthFromDate(value){
+  if(value instanceof Date && !isNaN(value)) return FULL_MONTHS[value.getMonth()];
+  const s=String(value??'').trim();
+  let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if(m)return FULL_MONTHS[Number(m[2])-1]||'';
+  m=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if(m){
+    const first=Number(m[1]),second=Number(m[2]);
+    // Las fechas ambiguas de este detalle se muestran en formato mes/día/año.
+    const month=first>12?second:first;
+    return FULL_MONTHS[month-1]||'';
+  }
+  const parsed=new Date(s);
+  return isNaN(parsed)?'':FULL_MONTHS[parsed.getMonth()];
+}
+function canonicalMonth(value){
+  const s=String(value??'').trim().toLowerCase();
+  const index=MONTH_ORDER.findIndex(m=>s.startsWith(m.slice(0,3)));
+  return index<0?String(value??'').trim():FULL_MONTHS[index];
+}
+
+function worksheetRows(ws, sheetIndex){
+  const matrix = XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+  let headerIndex = matrix.findIndex(row=>row.some(v=>String(v).trim().toLowerCase()==='mes'));
+  if(headerIndex<0) headerIndex=matrix.findIndex(row=>{
+    const cells=row.map(v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim());
+    return cells.includes('fecha') && cells.includes('hub') && cells.some(v=>v.includes('orden de venta'));
+  });
+  if(headerIndex<0) return [];
+  const rawHeaders=matrix[headerIndex];
+  const seen={};
+  const headers=rawHeaders.map((v,i)=>({value:String(v||'').trim(),index:i})).filter(h=>h.value).map(h=>{
+    seen[h.value]=(seen[h.value]||0)+1;
+    return {key:seen[h.value]>1?`${h.value}_${h.index+1}`:h.value,index:h.index};
+  });
+  const monthHeader=headers.find(h=>h.key.toLowerCase()==='mes')?.key;
+  const dateHeader=headers.find(h=>['fecha','dia'].includes(h.key.toLowerCase()))?.key;
+  const rows=[]; let currentMonth='', currentDate='';
+  for(const row of matrix.slice(headerIndex+1)){
+    if(!row.some(v=>String(v).trim()!=='')) continue;
+    const obj={}; headers.forEach(h=>obj[h.key]=row[h.index]??'');
+    if(monthHeader&&obj[monthHeader]){currentMonth=obj[monthHeader];currentDate=(dateHeader&&obj[dateHeader])||'';}
+    else if(monthHeader){obj[monthHeader]=currentMonth;if(dateHeader&&!obj[dateHeader])obj[dateHeader]=currentDate;}
+    rows.push(obj);
+  }
+  return rows;
+}
+
+const charts = {};
+const PUBLISHED_SHEETS={
+  transporte:{
+    base:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQpBOuVF4QhZe1_PHMW9I-NVIyQ90EtOnkgl64STbH3tJupebUigPjAlqQp0RlIbBShFSc4VFUhMkCX/pub?output=csv&gid=',
+    sheets:[
+      {index:0,gid:'1886662094',name:'% Indicador general operación'},
+      {index:1,gid:'0',name:'% Ontime'},
+      {index:2,gid:'1110150784',name:'% Infull'},
+      {index:7,gid:'1237360999',name:'Detalle Infull'},
+      {index:3,gid:'374847431',name:'% Efectividad'},
+      {index:4,gid:'2061749740',name:'% Retorno documental'},
+      {index:5,gid:'758399382',name:'% Ocupación vehicular'},
+      {index:6,gid:'1894820028',name:'Averías / Hurtos'}
+    ]
+  },
+  almacenamiento:{
+    base:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQl82isymo-mRMYkh7NCiFo_-eduaG-EomFQhNhNKFstvZtmh0NQf-txlrgUJgor95_SZD78VZvyzmL/pub?output=csv&gid=',
+    sheets:[
+      {index:0,gid:'0',name:'Inventario cíclico'},
+      {index:1,gid:'69258331',name:'% Ocupación bodega día Celta'},
+      {index:2,gid:'754815625',name:'Cantidad ingresos'},
+      {index:3,gid:'1782333461',name:'Armado cigarrillo Celta'}
+    ]
+  }
+};
+
+async function loadPublishedSheets(source){
+  const config=PUBLISHED_SHEETS[source];
+  if(!config)return;
+  const status=document.getElementById(source==='transporte'?'transportSync':'storageSync');
+  status.textContent='Conectando con Google Sheets…';
+  try{
+    if(location.protocol==='file:')throw new Error('Este HTML está abierto como archivo local. Ábrelo con “Abrir dashboard BAT.bat” para conectar Google Sheets.');
+    const localServer=['127.0.0.1','localhost'].includes(location.hostname);
+    let csvSheets;
+    if(localServer){
+      const response=await fetch(`/api/google-sheets?source=${encodeURIComponent(source)}`,{cache:'no-store'});
+      if(!response.ok)throw new Error(`Servidor local: respuesta HTTP ${response.status}`);
+      const payload=await response.json();
+      if(payload.error)throw new Error(payload.error);
+      csvSheets=payload.sheets;
+    }else{
+      csvSheets=await Promise.all(config.sheets.map(async sheet=>{
+        const response=await fetch(config.base+encodeURIComponent(sheet.gid),{mode:'cors',credentials:'omit',cache:'no-store'});
+        if(!response.ok)throw new Error(`${sheet.name}: respuesta HTTP ${response.status}`);
+        return {...sheet,csv:await response.text()};
+      }));
+    }
+    const loaded=csvSheets.map(sheet=>{
+      const csv=sheet.csv;
+      const parsed=Papa.parse(csv,{skipEmptyLines:false});
+      if(parsed.errors.some(e=>e.type==='Quotes'))throw new Error(`No se pudo leer el CSV de ${sheet.name}.`);
+      const worksheet=XLSX.utils.aoa_to_sheet(parsed.data);
+      const rows=worksheetRows(worksheet,sheet.index);
+      if(!rows.length)throw new Error(`No se encontraron encabezados reconocibles en ${sheet.name}.`);
+      return [sheet.index,rows];
+    });
+    const nextData={};loaded.forEach(([index,rows])=>nextData[index]=rows);
+    localWorkbookData[source]=nextData;
+    localWorkbookNames[source]=config.sheets.map(s=>s.name);
+    status.textContent=`Google Sheets actualizado · ${new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}`;
+    const activeBtn=document.querySelector('nav.tabs button.active');
+    if(activeBtn){
+      const id=activeBtn.dataset.id;
+      const isStorage=CATEGORIES.almacenamiento.tabs.some(t=>t.id===id);
+      if((source==='almacenamiento')===isStorage)RENDERERS[id](document.getElementById('sec-'+id));
+    }
+  }catch(err){
+    status.textContent='Error al actualizar desde Google Sheets';
+    console.error('No fue posible leer las hojas publicadas:',err);
+    alert(`No se pudo actualizar ${source==='transporte'?'Transporte':'Almacenamiento'} desde Google Sheets. Verifica la conexión y que las hojas sigan publicadas. ${err.message}`);
+  }
+}
+
+function makeChart(canvasId, config){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, config);
+  return charts[canvasId];
+}
+
+function monthSelector(id, months, onChange, defaultValue){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.innerHTML = '';
+  const sel = document.createElement('select');
+  sel.innerHTML = `<option value="__all">Todos los meses</option>` +
+    months.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(defaultValue && months.includes(defaultValue)) sel.value = defaultValue;
+  sel.addEventListener('change', e=>onChange(e.target.value));
+  el.appendChild(sel);
+  return sel;
+}
+
+async function renderGeneral(container){
+  container.innerHTML = `<div class="state">${localWorkbookData.transporte[0] ? 'Leyendo estado general…' : 'Cargue el Excel de Transporte para consultar el estado general BAT.'}</div>`;
+  const rows = await getSheetData(0);
+  if(!rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const monthKey = findKey(rows[0], 'mes');
+  const headers = keys.map(k=>k.replace(/\s*[_\d]+$/,''));
+  const isGeneral = keys.some(k=>/ontime/i.test(k)) && keys.some(k=>/infull/i.test(k));
+  const totalKeys=keys.filter(k=>/^total(?:_\d+)?$/i.test(k));
+  const metrics=[{name:'% Ontime',rate:keys.find(k=>/^%\s*ontime$/i.test(k)),good:findKey(rows[0],'entregas a tiempo'),total:totalKeys[0],color:'#00A3E0'},
+    {name:'% Infull',rate:keys.find(k=>/^%\s*infull$/i.test(k)),good:findKey(rows[0],'entregas completas'),total:totalKeys[1],color:'#F2B705'},
+    {name:'% Efectividad',rate:keys.find(k=>/^%\s*efectividad$/i.test(k)),good:findKey(rows[0],'entregas efectivas'),total:totalKeys[2],color:'#6D5BD0'}];
+  const kpis=metrics.map(m=>{let good=0,total=0;rows.forEach(r=>{good+=parseNum(r[m.good])||0;total+=parseNum(r[m.total])||0;});return {name:m.name,value:total?good/total:null,color:m.color};});
+  container.innerHTML = `<div class="section-head"><div><div class="eyebrow">1. Transporte</div><h2>Estado general operación BAT</h2></div></div>
+    <div class="kpi-row">${kpis.map(k=>`<div class="kpi" style="border-top:4px solid ${k.color}"><div class="label">${k.name} consolidado</div><div class="value" style="color:#1A7A3C">${k.value===null?'—':(k.value*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div>`).join('')}</div>
+    ${isGeneral ? `<div class="card"><h3>Comportamiento mensual de indicadores — consolidado por mes</h3><div class="chart-wrap full"><canvas id="generalChart"></canvas></div></div>` : ''}
+    <div class="card"><h3>Resumen mensual de indicadores</h3><div class="table-scroll"><table class="summary-table"><thead><tr>${headers.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${keys.map(k=>`<td>${r[k] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  if(isGeneral){
+    const labels = rows.map(r=>r[monthKey]).filter(Boolean);
+    makeChart('generalChart',{type:'bar',data:{labels,datasets:metrics.map(m=>({label:m.name,data:rows.map(r=>{const g=parseNum(r[m.good]),t=parseNum(r[m.total]);return t?g/t*100:null;}),backgroundColor:m.color,borderRadius:4,barThickness:52,maxBarThickness:56,barPercentage:.9,categoryPercentage:.95,datalabels:{display:true,backgroundColor:m.color,color:'#fff',borderRadius:4,padding:{top:2,bottom:2,left:2,right:2},anchor:'center',align:'center',font:{size:9,weight:'700'},formatter:v=>v==null?'':v.toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}}))},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:20}},plugins:{legend:{position:'bottom'},datalabels:{display:true,clip:false,clamp:true}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'},title:{display:true,text:'Cumplimiento'}}}}});
+  }
+}
+
+// ================= RENDERERS TRANSPORTE =================
+
+async function renderOntime(container){
+  container.innerHTML = `<div class="state">Cargando datos de 1.1 Ontime…</div>`;
+  let rows;
+  try{ rows = await getSheetData(0); } catch(e){ container.innerHTML = `<div class="state error">Cargue un archivo Excel (.xlsx) usando el botón superior "📁 Cargar Excel (.xlsx)".<br><small>${e.message}</small></div>`; return; }
+  if(!rows.length){ container.innerHTML = `<div class="state">Sin datos disponibles.</div>`; return; }
+  
+  const kMes=findKey(rows[0],'mes'), kOntime=findKey(rows[0],'% ontime','ontime'),
+        kTotal=findKey(rows[0],'total'),
+        kFuera=findKey(rows[0],'entregas fuera de tiempo','fuera de tiempo','fuera tiempo');
+  const allKeys = Object.keys(rows[0]);
+  const kOntimeFinal = kOntime || allKeys[3] || null;
+  const kFueraFinal  = kFuera  || allKeys[5] || null;
+  
+  const data = rows.map(r=>({
+    mes:r[kMes], ontime:parseNum(r[kOntimeFinal]), total:parseNum(r[kTotal]),
+    fuera: kFueraFinal ? parseNum(r[kFueraFinal]) : null
+  }));
+  const months = [...new Set(data.map(d=>d.mes).filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">1. Transporte</div><h2>1.1 Ontime</h2></div>
+      <div class="controls" id="ontime-filter"></div>
+    </div>
+    <div class="card"><h3>Histograma mensual — Entregas fuera de tiempo vs % Ontime</h3><div class="chart-wrap full"><canvas id="ontimeChart"></canvas></div></div>
+  `;
+  
+  function draw(filterMonth){
+    const filtered = filterMonth==='__all' ? data : data.filter(d=>d.mes===filterMonth);
+    const byMonth = {};
+    filtered.forEach(d=>{ if(!d.mes) return;
+      (byMonth[d.mes] = byMonth[d.mes]||{ot:[],tot:0,fuera:0});
+      byMonth[d.mes].ot.push(d.ontime); byMonth[d.mes].tot += (d.total||0); byMonth[d.mes].fuera += (d.fuera||0);
+    });
+    const labels = Object.keys(byMonth).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const ontimeVals = labels.map(m=>{ const v=byMonth[m].ot.filter(x=>x!==null); return v.length? v.reduce((a,b)=>a+b,0)/v.length*100:0; });
+    const fueraVals = labels.map(m=>byMonth[m].fuera);
+    const totalVals = labels.map(m=>byMonth[m].tot);
+    
+    makeChart('ontimeChart', {
+      type:'bar',
+      data:{labels, datasets:[
+        {label:'Total facturas', data:totalVals, backgroundColor:'#003087', borderRadius:5, maxBarThickness:52, yAxisID:'y',
+          datalabels:{color:'#fff', anchor:'center', align:'center', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'Entregas fuera de tiempo', data:fueraVals, backgroundColor:'#FF7A00', borderRadius:5, maxBarThickness:52, yAxisID:'y',
+          datalabels:{color:'#FF7A00', anchor:'end', align:'top', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'% Ontime', data:ontimeVals, type:'line', borderColor:'#D0021B', backgroundColor:'rgba(208,2,27,0.12)',
+          borderWidth:3, tension:.35, pointRadius:5, pointHoverRadius:7, pointBackgroundColor:'#D0021B', fill:false, yAxisID:'y1',
+          datalabels: lineDL('#D0021B', v=>v? v.toFixed(1)+'%':'')}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:32}},
+        plugins:{legend:{position:'bottom'}},
+        scales:{
+          y:{beginAtZero:true, position:'left', title:{display:true,text:'Cantidad facturas'}},
+          y1:{beginAtZero:true, suggestedMax:110, position:'right', grid:{drawOnChartArea:false}, ticks:{callback:v=>v<=100?v+'%':''}, title:{display:true,text:'% Ontime'}}
+        }}
+    });
+  }
+  draw('__all');
+  monthSelector('ontime-filter', months, draw);
+}
+
+async function renderInFull(container){
+  container.innerHTML = `<div class="state">Cargando datos de 1.2 In Full…</div>`;
+  let rows;
+  try{ rows = await getSheetData(1); } catch(e){ container.innerHTML = `<div class="state error">Cargue un archivo Excel (.xlsx) usando el botón superior "📁 Cargar Excel (.xlsx)".<br><small>${e.message}</small></div>`; return; }
+  if(!rows.length){ container.innerHTML = `<div class="state">Sin datos disponibles.</div>`; return; }
+  
+  const kMes=findKey(rows[0],'mes'), kEf=findKey(rows[0],'% efectividad','efectividad'),
+        kDev=findKey(rows[0],'% devoluciones','devoluciones'), kEnt=findKey(rows[0],'cantidad entregas','entregas');
+  const allKeys = Object.keys(rows[0]);
+  const kCantDev = allKeys[5] || null;
+  const data = rows.map(r=>({mes:r[kMes], ef:parseNum(r[kEf]), dev:parseNum(r[kDev]), ent:parseNum(r[kEnt]),
+    cantDev: kCantDev ? parseNum(r[kCantDev]) : null}));
+  const months = [...new Set(data.map(d=>d.mes).filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">1. Transporte</div><h2>1.2 In Full</h2></div>
+      <div class="controls" id="infull-filter"></div>
+    </div>
+    <div class="card"><h3>Histograma mensual — Cumplimiento In Full y Devoluciones</h3><div class="chart-wrap full"><canvas id="infullChart"></canvas></div></div>
+  `;
+  function draw(filterMonth){
+    const filtered = filterMonth==='__all' ? data : data.filter(d=>d.mes===filterMonth);
+    const byMonth = {};
+    filtered.forEach(d=>{ if(!d.mes) return;
+      (byMonth[d.mes]=byMonth[d.mes]||{ef:[],dev:[],ent:0,cantDev:0});
+      byMonth[d.mes].ef.push(d.ef); byMonth[d.mes].dev.push(d.dev);
+      byMonth[d.mes].ent += (d.ent||0); byMonth[d.mes].cantDev += (d.cantDev||0);
+    });
+    const labels = Object.keys(byMonth).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const avg = arr => { const v=arr.filter(x=>x!==null); return v.length? v.reduce((a,b)=>a+b,0)/v.length*100:null; };
+    const efv    = labels.map(m=>avg(byMonth[m].ef));
+    const devv   = labels.map(m=>avg(byMonth[m].dev));
+    const entv   = labels.map(m=>byMonth[m].ent);
+    const cantDevv = labels.map(m=>byMonth[m].cantDev);
+    makeChart('infullChart', {
+      type:'bar',
+      data:{labels, datasets:[
+        {label:'Cantidad entregas completas', data:entv, backgroundColor:'#003087', borderRadius:5, maxBarThickness:50, yAxisID:'y',
+          datalabels:{color:'#fff', anchor:'center', align:'center', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'Cantidad devoluciones / Incompletas', data:cantDevv, backgroundColor:'#FF7A00', borderRadius:5, maxBarThickness:50, yAxisID:'y',
+          datalabels:{color:'#FF7A00', anchor:'end', align:'top', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'% In Full', data:efv, type:'line', borderColor:'#00A3E0', backgroundColor:'rgba(0,163,224,0.12)',
+          borderWidth:3, tension:.35, pointRadius:5, fill:false, pointBackgroundColor:'#00A3E0', yAxisID:'y1',
+          datalabels: lineDL('#00A3E0', v=>v? v.toFixed(1)+'%':'')},
+        {label:'% Devoluciones', data:devv, type:'line', borderColor:'#D0021B', backgroundColor:'rgba(208,2,27,0.1)',
+          borderWidth:2.5, tension:.35, pointRadius:5, fill:false, yAxisID:'y1',
+          datalabels: lineDL('#D0021B', v=>v? v.toFixed(1)+'%':'')}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:32}},
+        plugins:{legend:{position:'bottom'}},
+        scales:{
+          y:{beginAtZero:true, position:'left', title:{display:true,text:'Cantidad'}},
+          y1:{beginAtZero:true, suggestedMax:110, position:'right', grid:{drawOnChartArea:false}, ticks:{callback:v=>v<=100?v+'%':''}, title:{display:true,text:'%'}}
+        }}
+    });
+  }
+  draw('__all');
+  monthSelector('infull-filter', months, draw);
+}
+
+async function renderEfectividad(container){
+  container.innerHTML = `<div class="state">Cargando datos de 1.3 % Efectividad…</div>`;
+  let rows;
+  try{ rows = await getSheetData(2); } catch(e){ container.innerHTML = `<div class="state error">Cargue un archivo Excel (.xlsx) usando el botón superior "📁 Cargar Excel (.xlsx)".<br><small>${e.message}</small></div>`; return; }
+  if(!rows.length){ container.innerHTML = `<div class="state">Sin datos disponibles.</div>`; return; }
+  
+  const kMes=findKey(rows[0],'mes'), kEf=findKey(rows[0],'% efectividad','efectividad'),
+        kDev=findKey(rows[0],'% devoluciones','devoluciones'), kEnt=findKey(rows[0],'cantidad entregas','entregas');
+  const allKeys = Object.keys(rows[0]);
+  const kCantDev = allKeys[5] || null;
+  const data = rows.map(r=>({mes:r[kMes], ef:parseNum(r[kEf]), dev:parseNum(r[kDev]), ent:parseNum(r[kEnt]),
+    cantDev: kCantDev ? parseNum(r[kCantDev]) : null}));
+  const months = [...new Set(data.map(d=>d.mes).filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">1. Transporte</div><h2>1.3 % Efectividad</h2></div>
+      <div class="controls" id="ef-filter"></div>
+    </div>
+    <div class="card"><h3>Histograma mensual — Efectividad, devoluciones y cantidad de entregas</h3><div class="chart-wrap full"><canvas id="efChart"></canvas></div></div>
+  `;
+  function draw(filterMonth){
+    const filtered = filterMonth==='__all' ? data : data.filter(d=>d.mes===filterMonth);
+    const byMonth = {};
+    filtered.forEach(d=>{ if(!d.mes) return;
+      (byMonth[d.mes]=byMonth[d.mes]||{ef:[],dev:[],ent:0,cantDev:0});
+      byMonth[d.mes].ef.push(d.ef); byMonth[d.mes].dev.push(d.dev);
+      byMonth[d.mes].ent += (d.ent||0); byMonth[d.mes].cantDev += (d.cantDev||0);
+    });
+    const labels = Object.keys(byMonth).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const avg = arr => { const v=arr.filter(x=>x!==null); return v.length? v.reduce((a,b)=>a+b,0)/v.length*100:null; };
+    const efv    = labels.map(m=>avg(byMonth[m].ef));
+    const devv   = labels.map(m=>avg(byMonth[m].dev));
+    const entv   = labels.map(m=>byMonth[m].ent);
+    const cantDevv = labels.map(m=>byMonth[m].cantDev);
+    makeChart('efChart', {
+      type:'bar',
+      data:{labels, datasets:[
+        {label:'Cantidad entregas', data:entv, backgroundColor:'#003087', borderRadius:5, maxBarThickness:50, yAxisID:'y',
+          datalabels:{color:'#fff', anchor:'center', align:'center', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'Cantidad devoluciones', data:cantDevv, backgroundColor:'#FF7A00', borderRadius:5, maxBarThickness:50, yAxisID:'y',
+          datalabels:{color:'#FF7A00', anchor:'end', align:'top', font:{size:10,weight:'700'}, formatter:v=>v? fmtNum(v):''}},
+        {label:'% Efectividad', data:efv, type:'line', borderColor:'#FFD700', backgroundColor:'rgba(255,215,0,0.12)',
+          borderWidth:3, tension:.35, pointRadius:5, fill:false, pointBackgroundColor:'#FFD700', yAxisID:'y1',
+          datalabels: lineDL('#FFD700', v=>v? v.toFixed(1)+'%':'', '#1A1A1A')},
+        {label:'% Devoluciones', data:devv, type:'line', borderColor:'#D0021B', backgroundColor:'rgba(208,2,27,0.1)',
+          borderWidth:2.5, tension:.35, pointRadius:5, fill:false, yAxisID:'y1',
+          datalabels: lineDL('#D0021B', v=>v? v.toFixed(1)+'%':'')}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:32}},
+        plugins:{legend:{position:'bottom'}},
+        scales:{
+          y:{beginAtZero:true, position:'left', title:{display:true,text:'Cantidad'}},
+          y1:{beginAtZero:true, suggestedMax:110, position:'right', grid:{drawOnChartArea:false}, ticks:{callback:v=>v<=100?v+'%':''}, title:{display:true,text:'%'}}
+        }}
+    });
+  }
+  draw('__all');
+  monthSelector('ef-filter', months, draw);
+}
+
+async function renderRetorno(container){
+  container.innerHTML = `<div class="state">Cargando datos de 1.4 % Retorno Documental…</div>`;
+  let rows;
+  try{ rows = await getSheetData(4); } catch(e){ container.innerHTML = `<div class="state error">Cargue el Excel de Transporte.<br><small>${e.message}</small></div>`; return; }
+  if(!rows.length){ container.innerHTML = `<div class="state">Sin datos disponibles.</div>`; return; }
+  
+  const allKeys = Object.keys(rows[0]);
+  const k = {
+    mes:findKey(rows[0],'mes'), fecha:findKey(rows[0],'fecha'),
+    gen:findKey(rows[0],'documentos generados'), ent:findKey(rows[0],'documentos entregados'),
+    pctEnt:findKey(rows[0],'% entrega'), pctOn:findKey(rows[0],'% ontime documentos','ontime documentos','% ontime'),
+    mesDesc:allKeys[6]||null,
+    descFact: findKey(rows[0],'descuento facturas incompletas','descuento facturas','descuento') || allKeys[7] || null,
+    cantFact: findKey(rows[0],'cantidad facturas','cant facturas','cant. facturas') || allKeys[8] || null
+  };
+  const data = rows.map(r=>({
+    mes:r[k.mes], mesDesc:r[k.mesDesc], fecha:r[k.fecha], gen:parseNum(r[k.gen]), ent:parseNum(r[k.ent]),
+    pctEnt:parseNum(r[k.pctEnt]), pctOn:parseNum(r[k.pctOn]),
+    descFact: k.descFact ? parseNum(r[k.descFact]) : null,
+    cantFact: k.cantFact ? parseNum(r[k.cantFact]) : null
+  }));
+  const months = [...new Set(data.map(d=>d.mes).filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">1. Transporte</div><h2>1.4 % Retorno Documental</h2></div>
+      <div class="controls" id="ret-filter"></div>
+    </div>
+    <div class="kpi-row" id="ret-kpis"></div>
+    <div class="card"><h3>Documentos generados / entregados / % entrega / % ontime &lt;48h</h3><div class="chart-wrap full"><canvas id="retChart1"></canvas></div></div>
+    <div class="card"><h3>Descuento por facturas incompletas (mensual, en $)</h3><div class="chart-wrap full"><canvas id="retChart2"></canvas></div></div>
+  `;
+  function draw(filterMonth){
+    const filtered = filterMonth==='__all' ? data : data.filter(d=>d.mes===filterMonth);
+    const byMonth = {};
+    filtered.forEach(d=>{ if(!d.mes) return;
+      (byMonth[d.mes]=byMonth[d.mes]||{gen:0,ent:0,pe:[],po:[],desc:0,cant:0});
+      byMonth[d.mes].gen+=d.gen||0; byMonth[d.mes].ent+=d.ent||0;
+      byMonth[d.mes].pe.push(d.pctEnt); byMonth[d.mes].po.push(d.pctOn);
+      byMonth[d.mes].desc+=d.descFact||0; byMonth[d.mes].cant+=d.cantFact||0;
+    });
+    const labels = Object.keys(byMonth).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const avg = arr => { const v=arr.filter(x=>x!==null); return v.length? v.reduce((a,b)=>a+b,0)/v.length*100:null; };
+    const avgFraction=arr=>{const v=arr.filter(x=>x!==null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+    const entregaProm=avgFraction(filtered.map(d=>d.pctEnt)), ontime48Prom=avgFraction(filtered.map(d=>d.pctOn));
+    document.getElementById('ret-kpis').innerHTML=[['% Entrega promedio',entregaProm],['% Ontime documental <48h promedio',ontime48Prom]].map(([label,value],i)=>`<div class="kpi" style="border-top:4px solid ${i?'#D0021B':'#F2B705'}"><div class="label">${label}</div><div class="value" style="color:#1A7A3C">${value===null?'—':(value*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div>`).join('');
+    const peVals = labels.map(m=>avg(byMonth[m].pe));
+    const poVals = labels.map(m=>avg(byMonth[m].po));
+    makeChart('retChart1', {
+      type:'bar',
+      data:{labels, datasets:[
+        {label:'Doc. generados', data:labels.map(m=>byMonth[m].gen), backgroundColor:'#003087', yAxisID:'y', order:2,
+          datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',font:{size:10,weight:'700'},formatter:v=>v?fmtNum(v):''}},
+        {label:'Doc. entregados', data:labels.map(m=>byMonth[m].ent), backgroundColor:'#0057B8', yAxisID:'y', order:2,
+          datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',font:{size:10,weight:'700'},formatter:v=>v?fmtNum(v):''}},
+      {label:'% Entrega', data:peVals, type:'line', borderColor:'#1A9B50', backgroundColor:'rgba(26,155,80,0.12)',
+          borderWidth:3, tension:.35, pointRadius:5, pointBackgroundColor:'#1A9B50', fill:false, yAxisID:'y1', order:1,
+          datalabels:{...lineDL('#1A9B50',v=>v>0?v.toFixed(2)+'%':'','#FFFFFF'),display:true,backgroundColor:'#1A9B50',align:'top',anchor:'end',offset:8}},
+        {label:'% Ontime <48h', data:poVals, type:'line', borderColor:'#D0021B', backgroundColor:'rgba(208,2,27,0.1)',
+          borderWidth:2.5, tension:.35, pointRadius:5, pointBackgroundColor:'#D0021B', fill:false, yAxisID:'y1', order:1,
+          datalabels:{...lineDL('#D0021B',v=>v>0?v.toFixed(2)+'%':'','#8A1010'),display:true,backgroundColor:'#FAD6D6',align:'top',anchor:'end',offset:10}}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:32}},
+        plugins:{legend:{position:'bottom'}},
+        scales:{
+          y:{beginAtZero:true, position:'left'},
+          y1:{beginAtZero:true, suggestedMax:110, position:'right', grid:{drawOnChartArea:false}, ticks:{callback:v=>v<=100?v+'%':''}}
+        }}
+    });
+    const discountData={};
+    filtered.forEach(d=>{if(!d.mesDesc)return;const m=String(d.mesDesc).trim();(discountData[m]||(discountData[m]={desc:0,cant:0})).desc+=(d.descFact&&Math.abs(d.descFact)<1000?d.descFact*1000000:d.descFact)||0;discountData[m].cant+=d.cantFact||0;});
+    const discountLabels=Object.keys(discountData).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    makeChart('retChart2', {
+      type:'bar',
+      data:{labels:discountLabels, datasets:[
+        {label:'Cantidad facturas', data:discountLabels.map(m=>discountData[m].cant), backgroundColor:'#003087', borderRadius:6, maxBarThickness:60, yAxisID:'y', order:2,
+          datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',font:{size:10,weight:'700'},formatter:v=>v?fmtNum(v):''}},
+        {label:'Descuento facturas incompletas ($)', data:discountLabels.map(m=>discountData[m].desc), type:'line', borderColor:'#D0021B', backgroundColor:'#D0021B',
+          borderWidth:2.5, tension:.35, pointRadius:6, pointHoverRadius:8, fill:false, yAxisID:'y1', order:1,
+          datalabels:{...lineDL('#D0021B',v=>v?`${fmtCOP(v)} COP`:'','#8A1010'),display:true,backgroundColor:'#FAD6D6'}}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:36,right:16}},
+        plugins:{legend:{position:'bottom'},datalabels:{display:true,clip:false,clamp:true},tooltip:{callbacks:{label:ctx=>ctx.dataset.label.includes('Descuento')?`${ctx.dataset.label}: ${fmtCOP(ctx.raw)} COP`:`${ctx.dataset.label}: ${fmtNum(ctx.raw)}`}}},
+        scales:{
+          y:{beginAtZero:true, position:'left', title:{display:true,text:'Cant. facturas'}},
+          y1:{beginAtZero:true, max:15000000, position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'Descuento (COP)'}, ticks:{stepSize:3000000,callback:v=>`${fmtCOP(v)} COP`}}
+        }}
+    });
+  }
+  draw('__all');
+  monthSelector('ret-filter', months, draw);
+}
+
+async function renderHubMetric(container, kind){
+  const cfg={
+    ontime:{index:1,title:'1.1 Ontime',rate:'% Ontime',late:'Entregas fuera de tiempo',good:'Entregas a tiempo',countLabel:'Entregas',badLabel:'Entregas fuera de tiempo',series:'% Ontime'},
+    infull:{index:2,title:'1.2 In Full',rate:'% Infull',late:'Entregas con novedad',good:'Entregas completas',countLabel:'Entregas completas',badLabel:'Entregas con novedad',series:'% In Full'},
+    efectividad:{index:3,title:'1.3 % Efectividad',rate:'% Efectividad',late:'Entregas no efectivas',good:'Entregas efectivas',countLabel:'Entregas efectivas',badLabel:'Entregas no efectivas',series:'% Efectividad'}
+  }[kind];
+  const rows=await getSheetData(cfg.index);
+  if(!rows.length){container.innerHTML='<div class="state">Cargue el archivo Excel para consultar este indicador.</div>';return;}
+  const detailRows=kind==='infull'?await getSheetData(7):[];
+  const detailKeys=detailRows.length?Object.keys(detailRows[0]):[];
+  const detailDateKey=detailRows.length?findKey(detailRows[0],'fecha'):null;
+  const detailMonthKey=detailRows.length?findKey(detailRows[0],'mes'):null;
+  const detailMonth=r=>detailMonthKey&&r[detailMonthKey]?canonicalMonth(r[detailMonthKey]):monthFromDate(r[detailDateKey]);
+  const keys=Object.keys(rows[0]);
+  const pick=(name,hub)=>keys.find(k=>k.toLowerCase().startsWith(name.toLowerCase()) && (hub==='bogota'?!/_\d+$/.test(k):/_\d+$/.test(k)));
+  const monthKey=findKey(rows[0],'mes');
+  const months=[...new Set([...rows.map(r=>canonicalMonth(r[monthKey])),...detailRows.map(detailMonth)].filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+  container.innerHTML=`<div class="section-head"><div><div class="eyebrow">1. Transporte</div><h2>${cfg.title}</h2></div><div class="controls" id="${kind}-filter"></div></div>
+    <div class="kpi-row" id="${kind}-kpis"></div>
+    <div class="card"><h3>Bogotá — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-bogota"></canvas></div></div>
+    <div class="card"><h3>Cundinamarca — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-sabana"></canvas></div></div>
+    ${kind==='infull'?`<div class="card pdf-breakable"><h3>Detalle de órdenes afectadas — In Full</h3><div id="infull-detail"></div></div>`:''}`;
+  function draw(month){
+    const filtered=rows.filter(r=>month==='__all'||canonicalMonth(r[monthKey])===month);
+    const hubs=[{id:'bogota',suffix:false},{id:'sabana',suffix:true}];
+    const hubKpis=[];
+    hubs.forEach(h=>{
+      const rateKey=pick(cfg.rate,h.id), goodKey=pick(cfg.good,h.id), badKey=pick(cfg.late,h.id), totalKey=pick('Total',h.id);
+      const by={};
+      filtered.forEach(r=>{const m=r[monthKey];if(!m)return;const x=by[m]||(by[m]={good:0,bad:0,total:0});x.good+=parseNum(r[goodKey])||0;x.bad+=parseNum(r[badKey])||0;x.total+=parseNum(r[totalKey])||0;});
+      const labels=Object.keys(by).sort((a,b)=>monthIndex(a)-monthIndex(b));
+      const rates=labels.map(m=>by[m].total?by[m].good/by[m].total*100:0);
+      const totals=labels.map(m=>by[m].good), misses=labels.map(m=>by[m].bad);
+      makeChart(`${kind}-${h.id}`,{type:'bar',data:{labels,datasets:[
+        {label:cfg.countLabel,data:totals,backgroundColor:'#003087',borderRadius:5,yAxisID:'y',datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>v?fmtNum(v):''}},
+        {label:cfg.badLabel,data:misses,backgroundColor:'#00A3E0',borderRadius:5,yAxisID:'y',datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>v?fmtNum(v):''}},
+        {label:cfg.series,data:rates,type:'line',borderColor:'#D0021B',borderWidth:3,tension:.3,pointRadius:5,yAxisID:'y1',datalabels:{display:true,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:5,formatter:v=>v.toFixed(2)+'%'}}
+      ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Entregas'}},y1:{beginAtZero:true,max:100,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'},title:{display:true,text:'Cumplimiento'}}}}});
+      const total=filtered.reduce((s,r)=>s+(parseNum(r[totalKey])||0),0),good=filtered.reduce((s,r)=>s+(parseNum(r[goodKey])||0),0),bad=filtered.reduce((s,r)=>s+(parseNum(r[badKey])||0),0);
+      hubKpis.push({hub:h.id==='bogota'?'Bogotá':'Cundinamarca',rate:total?good/total:null,bad});
+    });
+    document.getElementById(`${kind}-kpis`).innerHTML=hubKpis.flatMap(x=>[
+      `<div class="kpi"><div class="label">${x.hub} · ${cfg.series}</div><div class="value" style="color:#1A7A3C">${x.rate===null?'—':(x.rate*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div>`,
+      `<div class="kpi"><div class="label">${x.hub} · ${cfg.badLabel}</div><div class="value neutral">${fmtNum(x.bad)}</div></div>`
+    ]).join('');
+    if(kind==='infull'){
+      const selectedDetails=detailRows.filter(r=>month==='__all'||detailMonth(r)===month).sort((a,b)=>{
+        const da=new Date(a[detailDateKey]),db=new Date(b[detailDateKey]);return (isNaN(da)?0:da.getTime())-(isNaN(db)?0:db.getTime());
+      });
+      const dateText=value=>{
+        if(value instanceof Date&&!isNaN(value))return value.toLocaleDateString('es-CO');
+        const s=String(value??'').trim(),m=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+        if(!m)return s.toLocaleUpperCase('es-CO');
+        const first=Number(m[1]),second=Number(m[2]),monthNum=first>12?second:first,day=first>12?first:second;
+        let year=Number(m[3]);if(year<100)year+=2000;
+        return `${String(day).padStart(2,'0')}/${String(monthNum).padStart(2,'0')}/${year}`;
+      };
+      const detailHost=document.getElementById('infull-detail');
+      if(!detailRows.length)detailHost.innerHTML='<div class="state">El archivo cargado no contiene la pestaña “Detalle Infull”.</div>';
+      else if(!selectedDetails.length)detailHost.innerHTML='<div class="state">No hay órdenes afectadas para el periodo seleccionado.</div>';
+      else detailHost.innerHTML=`<div class="table-scroll"><table class="detail-table"><thead><tr>${detailKeys.map(k=>`<th>${safeCell(k.toLocaleUpperCase('es-CO'))}</th>`).join('')}</tr></thead><tbody>${selectedDetails.map(r=>`<tr>${detailKeys.map(k=>`<td>${safeCell(k===detailDateKey?dateText(r[k]):String(r[k]??'').toLocaleUpperCase('es-CO'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+  }
+  draw('__all');monthSelector(`${kind}-filter`,months,draw);
+}
+
+function safeCell(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function dataTable(rows, keys){
+  const cell=(key,value)=>{const numeric=parseNum(value);if(numeric!==null&&String(key).toLowerCase()==='valor')return safeCell(fmtCOP(numeric));if(numeric!==null&&/(unidades|estibas|ubicaciones|posiciones|cantidad unidades)/i.test(key))return safeCell(fmtNum(Math.round(numeric)));return safeCell(value);};
+  return `<div class="table-scroll"><table><thead><tr>${keys.map(k=>`<th>${safeCell(k)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${keys.map(k=>`<td>${cell(k,r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function groupedByMonth(rows, monthKey, fields){
+  const groups={};
+  rows.forEach(r=>{const m=r[monthKey];if(!m)return;const g=groups[m]||(groups[m]={n:0,...Object.fromEntries(fields.map(f=>[f,0]))});g.n++;fields.forEach(f=>g[f]+=parseNum(r[f])||0);});
+  return groups;
+}
+function avgChart(canvas, labels, series, percentSeries=[]){
+  const datasets=series.map(s=>({type:'bar',label:s.label,data:s.data.map(v=>v==null?null:Math.round(v)),backgroundColor:s.color,borderRadius:4,yAxisID:'y',datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>v==null?'':fmtNum(v)}}));
+  percentSeries.forEach(s=>datasets.push({type:'line',label:s.label,data:s.data,borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:5,yAxisID:'y1',datalabels:{display:true,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:5,formatter:v=>v==null?'':(v*100).toFixed(2)+'%'}}));
+  makeChart(canvas,{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:26}},interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Promedio diario'}},y1:{beginAtZero:true,max:1,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>(v*100).toFixed(0)+'%'},title:{display:true,text:'Porcentaje'}}}}});
+}
+function renderStorageMonthly(container,index,title,fieldDefs,lineDef){
+  return getSheetData(index,'almacenamiento').then(rows=>{
+    if(!rows.length){container.innerHTML='<div class="state">Cargue el Excel de Almacenamiento para consultar este indicador.</div>';return;}
+    const monthKey=findKey(rows[0],'mes');
+    const valid=rows.filter(r=>r[monthKey]&&fieldDefs.some(f=>parseNum(r[findKey(r,f.key)])!==null));
+    const keys=Object.keys(rows[0]);
+    const fields=fieldDefs.map(f=>({label:f.label,key:findKey(rows[0],f.key),color:f.color}));
+    const lineKey=lineDef?findKey(rows[0],lineDef.key):null;
+    const groups=groupedByMonth(valid,monthKey,[...fields.map(f=>f.key),...(lineKey?[lineKey]:[])]);
+    const months=Object.keys(groups).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const consolidated=lineKey?valid.map(r=>parseNum(r[lineKey])).filter(v=>v!==null):[];
+    const consolidatedAverage=consolidated.length?consolidated.reduce((a,b)=>a+b,0)/consolidated.length:null;
+    const kpiLabel=lineDef?`${lineDef.label} promedio consolidado`:'';
+    container.innerHTML=`<div class="section-head"><div><div class="eyebrow">2. Almacenamiento</div><h2>${title}</h2></div></div>${lineDef?`<div class="kpi-row"><div class="kpi" style="border-top:4px solid #1A7A3C"><div class="label">${kpiLabel}</div><div class="value" style="color:#1A7A3C">${consolidatedAverage===null?'—':(consolidatedAverage*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div></div>`:''}<div class="card"><h3>Promedio diario consolidado por mes</h3><div class="chart-wrap full"><canvas id="storage-${index}-chart"></canvas></div></div><div class="card"><h3>Datos cargados</h3>${dataTable(valid,keys.filter(k=>!/(unidades sap)/i.test(k)))}</div>`;
+    avgChart(`storage-${index}-chart`,months,fields.map(f=>({label:f.label,color:f.color,data:months.map(m=>groups[m].n?groups[m][f.key]/groups[m].n:null)})),lineKey?[{label:lineDef.label,color:'#D0021B',data:months.map(m=>groups[m].n?groups[m][lineKey]/groups[m].n:null)}]:[]);
+  });
+}
+function renderInventario(container){return renderStorageMonthly(container,0,'% Inventario Cíclico',[{key:'unidades fisicas',label:'Unidades físicas',color:'#003087'},{key:'unidades jda',label:'Unidades JDA',color:'#00A3E0'}],{key:'% confiabilidad',label:'% Confiabilidad'});}
+function renderOcupacionCelta(container){return renderStorageMonthly(container,1,'% Ocupación Bodega Día Celta',[{key:'total ubicaciones',label:'Total ubicaciones',color:'#003087'},{key:'total estibas ocupadas',label:'Estibas ocupadas',color:'#00A3E0'},{key:'posiciones disponibles',label:'Posiciones disponibles',color:'#7BA7D4'}],{key:'% ocupacion',label:'% Ocupación'});}
+function renderIngresos(container){
+  return getSheetData(2,'almacenamiento').then(rows=>{
+    if(!rows.length){container.innerHTML='<div class="state">Cargue el Excel de Almacenamiento para consultar ingresos.</div>';return;}
+    const keys=Object.keys(rows[0]),monthKey=findKey(rows[0],'mes'),qtyKey=findKey(rows[0],'cantidad unidades');
+    const valid=rows.filter(r=>r[monthKey]&&(r[qtyKey]!==''||r[findKey(r,'dia')]));
+    const months=[...new Set(valid.map(r=>r[monthKey]))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+    container.innerHTML=`<div class="section-head"><div><div class="eyebrow">2. Almacenamiento</div><h2>2.3 Cantidad de Ingresos</h2></div><div class="controls" id="ingresos-filter"></div></div><div class="kpi-row" id="ingresos-kpi"></div><div class="card"><h3>Detalle de ingresos</h3><div id="ingresos-table"></div></div>`;
+    function draw(m){const filtered=valid.filter(r=>m==='__all'||r[monthKey]===m);const units=filtered.reduce((s,r)=>s+(parseNum(r[qtyKey])||0),0);document.getElementById('ingresos-kpi').innerHTML=`<div class="kpi" style="border-top:4px solid #00A3E0"><div class="label">Ingresos en el periodo</div><div class="value neutral">${fmtNum(filtered.length)}</div></div><div class="kpi" style="border-top:4px solid #F2B705"><div class="label">Unidades ingresadas</div><div class="value neutral">${fmtNum(units)}</div></div>`;document.getElementById('ingresos-table').innerHTML=dataTable(filtered,keys);}
+    draw('__all');monthSelector('ingresos-filter',months,draw);
+  });
+}
+function renderArmado(container){
+  return getSheetData(3,'almacenamiento').then(rows=>{
+    if(!rows.length){container.innerHTML='<div class="state">Cargue el Excel de Almacenamiento para consultar Armado de Cigarrillos.</div>';return;}
+    const keys=Object.keys(rows[0]),monthKey=findKey(rows[0],'mes'),dateKey=findKey(rows[0],'dia'),levelKey=findKey(rows[0],'nivel de servicio de armado'),goalKey=findKey(rows[0],'meta');
+    const valid=rows.filter(r=>r[monthKey]&&parseNum(r[levelKey])!==null);
+    const months=[...new Set(valid.map(r=>r[monthKey]))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+    container.innerHTML=`<div class="section-head"><div><div class="eyebrow">2. Almacenamiento</div><h2>2.4 Armado Cigarrillos Celta</h2></div><div class="controls"><div id="armado-month"></div><div id="armado-date"></div></div></div><div class="kpi-row" id="armado-kpi"></div><div class="card"><h3>Cumplimiento mensual promedio vs meta</h3><div class="chart-wrap full"><canvas id="armado-chart"></canvas></div></div><div class="card"><h3>Detalle por fecha y canal</h3><div id="armado-table"></div></div>`;
+    function draw(month,date='__all'){
+      const inMonth=valid.filter(r=>month==='__all'||r[monthKey]===month);
+      const selected=inMonth.filter(r=>date==='__all'||String(r[dateKey])===date);
+      const group={};inMonth.forEach(r=>{const m=r[monthKey],g=group[m]||(group[m]={level:0,goal:0,n:0});g.level+=parseNum(r[levelKey])||0;g.goal+=parseNum(r[goalKey])||0;g.n++;});
+      const labels=Object.keys(group).sort((a,b)=>monthIndex(a)-monthIndex(b));
+      makeChart('armado-chart',{type:'bar',data:{labels,datasets:[{label:'Nivel de armado',data:labels.map(m=>group[m].level/group[m].n*100),backgroundColor:'#003087',yAxisID:'y',datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>v.toFixed(2)+'%'}},{label:'Meta',data:labels.map(m=>group[m].goal/group[m].n*100),backgroundColor:'#00A3E0',yAxisID:'y',datalabels:{display:true,backgroundColor:'#DCEBFF',color:'#003087',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>v.toFixed(2)+'%'}}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{position:'bottom'}}}});
+      const avg=selected.length?selected.reduce((s,r)=>s+(parseNum(r[levelKey])||0),0)/selected.length:null;
+      document.getElementById('armado-kpi').innerHTML=`<div class="kpi"><div class="label">Cumplimiento promedio del filtro</div><div class="value" style="color:#003087">${avg===null?'—':(avg*100).toFixed(2)+'%'}</div></div>`;
+      document.getElementById('armado-table').innerHTML=dataTable(selected,keys);
+      const dates=[...new Set(inMonth.map(r=>r[dateKey]).filter(Boolean).map(v=>String(v)))];
+      const dateHolder=document.getElementById('armado-date');dateHolder.innerHTML='';if(dates.length)monthSelector('armado-date',dates,dt=>draw(month,dt));
+    }
+    draw('__all');monthSelector('armado-month',months,m=>draw(m));
+  });
+}
+function renderAverias(container){
+  return getSheetData(6,'transporte').then(rows=>{
+    if(!rows.length){container.innerHTML='<div class="state">Cargue el Excel de Transporte para consultar Averías / Hurtos.</div>';return;}
+    const keys=Object.keys(rows[0]),monthKey=findKey(rows[0],'mes'),orderKey=findKey(rows[0],'numero de orden','factura'),plateKey=findKey(rows[0],'placa'),obsKey=findKey(rows[0],'observaciones'),valueKey=findKey(rows[0],'valor')||Object.keys(rows[0])[4];
+    const valid=rows.filter(r=>r[monthKey]&&[orderKey,plateKey,obsKey,valueKey].some(k=>k&&String(r[k]||'').trim()&&String(r[k]).toUpperCase()!=='NA'));
+    const months=[...new Set(valid.map(r=>r[monthKey]))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+    container.innerHTML=`<div class="section-head"><div><div class="eyebrow">1. Transporte</div><h2>1.5 Averías / Hurtos</h2></div><div class="controls" id="averias-filter"></div></div><div class="kpi-row" id="averias-kpis"></div><div class="card"><h3>Novedades por mes y acumulado</h3><div class="chart-wrap full"><canvas id="averias-chart"></canvas></div></div><div class="card"><h3>Registros del Excel</h3><div id="averias-table"></div></div>`;
+    const tableKeys=keys.filter(k=>!['nombre conductor','valor'].includes(k.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()));tableKeys.push('Valor');
+    function draw(m){
+      const filtered=valid.filter(r=>m==='__all'||r[monthKey]===m), counts={},valueTotals={};
+      filtered.forEach(r=>{const mon=r[monthKey];counts[mon]=(counts[mon]||0)+1;const amount=valueKey?parseNum(r[valueKey]):null;if(amount!==null)valueTotals[mon]=(valueTotals[mon]||0)+amount;});
+      const numericValues=filtered.map(r=>valueKey?parseNum(r[valueKey]):null).filter(v=>v!==null);
+      const sumValue=numericValues.length?numericValues.reduce((a,b)=>a+b,0):null;
+      document.getElementById('averias-kpis').innerHTML=`<div class="kpi"><div class="label">Novedades registradas</div><div class="value neutral">${fmtNum(filtered.length)}</div></div><div class="kpi"><div class="label">Valor acumulado</div><div class="value neutral">${sumValue===null?'Sin valores numéricos':fmtCOP(sumValue)}</div></div>`;
+      const labels=Object.keys(counts).sort((a,b)=>monthIndex(a)-monthIndex(b));let n=0;const cumulative=labels.map(x=>n+=counts[x]);
+      const valueLine=labels.map(m=>valueTotals[m]??null);
+      const averiasDatasets=[
+        {label:'Cantidad de novedades',data:labels.map(x=>counts[x]),backgroundColor:'#003087',yAxisID:'y',datalabels:{display:true,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:5,anchor:'center',align:'center',formatter:v=>fmtNum(v)}},
+        {label:'Novedades acumuladas',data:cumulative,type:'line',borderColor:'#D0021B',backgroundColor:'#D0021B',borderWidth:3,tension:.3,pointRadius:5,yAxisID:'y',datalabels:{display:true,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:5,align:'top',offset:8,formatter:v=>fmtNum(v)}}
+      ];
+      if(numericValues.length)averiasDatasets.push({label:'Valor',data:valueLine,type:'line',borderColor:'#00A3E0',backgroundColor:'#00A3E0',borderWidth:2.5,tension:.3,pointRadius:5,yAxisID:'y1',datalabels:{display:ctx=>ctx.raw!==null,backgroundColor:'#DCEBFF',color:'#003087',borderRadius:4,padding:5,align:'bottom',offset:8,formatter:v=>fmtCOP(v)}});
+      makeChart('averias-chart',{type:'bar',data:{labels,datasets:averiasDatasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Valor'?`${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`:`${ctx.dataset.label}: ${fmtNum(ctx.raw)}`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'Cantidad de novedades'}},y1:{display:numericValues.length>0,beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtCOP(v)},title:{display:true,text:'Valor ($)'}}}}});
+      const tableRows=filtered.map(r=>({...r,Valor:valueKey&&parseNum(r[valueKey])!==null?r[valueKey]:''}));
+      document.getElementById('averias-table').innerHTML=dataTable(tableRows,tableKeys);
+    }
+    draw('__all');monthSelector('averias-filter',months,draw);
+  });
+}
+
+async function renderOcupacionVehicular(container){
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">1. Transporte</div><h2>1.5 % Ocupación Vehicular</h2></div>
+    </div>
+    <div class="card" style="min-height:380px;display:flex;align-items:center;justify-content:flex-start;text-align:left;">
+      <div style="text-align:left;max-width:520px;padding:30px 20px;">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#003087;margin:0 0 8px;text-transform:uppercase;text-align:left;">En Construcción</h3>
+        <p style="color:#5A6A8A;font-size:14px;line-height:1.6;margin:0;text-align:left;">Módulo de ocupación vehicular en desarrollo. Cargue la pestaña 5 de su archivo Excel para visualizar los datos cuando estén disponibles.</p>
+      </div>
+    </div>
+  `;
+}
+
+// ================= RENDERERS ALMACENAMIENTO =================
+
+async function renderCumplimientoAlm(container){
+  container.innerHTML = `<div class="state">Cargando datos de 2.1 % Cumplimiento Indicador…</div>`;
+  let rows;
+  try{ rows = await getSheetData(5); } catch(e){ rows = []; }
+  
+  if(!rows || !rows.length){
+    container.innerHTML = `
+      <div class="section-head">
+        <div><div class="eyebrow">2. Almacenamiento</div><h2>2.1 % Cumplimiento Indicador</h2></div>
+      </div>
+      <div class="card">
+        <h3>Indicador de Cumplimiento en Almacenamiento</h3>
+        <p style="color:var(--muted);font-size:14px;">Cargue un archivo Excel (.xlsx) que contenga los datos de cumplimiento de bodega en la Pestaña 6.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">2. Almacenamiento</div><h2>2.1 % Cumplimiento Indicador</h2></div>
+    </div>
+    <div class="card">
+      <h3>Resumen de Cumplimiento</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>${Object.keys(rows[0]).map(k=>`<th>${k}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr>${Object.values(r).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function renderHorasExtras(container){
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">2. Almacenamiento</div><h2>2.2 Horas Extras</h2></div>
+    </div>
+    <div class="card" style="min-height:380px;display:flex;align-items:center;justify-content:flex-start;text-align:left;">
+      <div style="text-align:left;max-width:520px;padding:30px 20px;">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#003087;margin:0 0 8px;text-transform:uppercase;text-align:left;">Módulo Horas Extras</h3>
+        <p style="color:#5A6A8A;font-size:14px;line-height:1.6;margin:0;text-align:left;">Visualización y gestión de horas extras del personal operativo de almacenamiento. Cargue la Pestaña 7 del archivo Excel para ver información detallada.</p>
+      </div>
+    </div>
+  `;
+}
+
+async function renderOcupacionBodega(container){
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">2. Almacenamiento</div><h2>2.3 % Ocupación Bodega</h2></div>
+    </div>
+    <div class="card" style="min-height:380px;display:flex;align-items:center;justify-content:flex-start;text-align:left;">
+      <div style="text-align:left;max-width:520px;padding:30px 20px;">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#003087;margin:0 0 8px;text-transform:uppercase;text-align:left;">Módulo Ocupación de Bodega</h3>
+        <p style="color:#5A6A8A;font-size:14px;line-height:1.6;margin:0;text-align:left;">Monitoreo de m2 / posiciones ocupadas en almacenamiento. Cargue la Pestaña 8 del archivo Excel para renderizar este indicador.</p>
+      </div>
+    </div>
+  `;
+}
+
+async function renderRotacionProducto(container){
+  container.innerHTML = `
+    <div class="section-head">
+      <div><div class="eyebrow">2. Almacenamiento</div><h2>2.4 Reporte Producto Sin Rotación / Rotación General</h2></div>
+    </div>
+    <div class="card" style="min-height:380px;display:flex;align-items:center;justify-content:flex-start;text-align:left;">
+      <div style="text-align:left;max-width:520px;padding:30px 20px;">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#003087;margin:0 0 8px;text-transform:uppercase;text-align:left;">Reporte de Rotación de Inventarios</h3>
+        <p style="color:#5A6A8A;font-size:14px;line-height:1.6;margin:0;text-align:left;">Análisis automático de SKUs sin movimiento (obsoletos/lenta rotación) y rotación general de productos BAT. Cargue la Pestaña 9 del archivo Excel para generar el análisis.</p>
+      </div>
+    </div>
+  `;
+}
+
+const RENDERERS = {
+  general: renderGeneral,
+  ontime: c=>renderHubMetric(c,'ontime'),
+  infull: c=>renderHubMetric(c,'infull'),
+  efectividad: c=>renderHubMetric(c,'efectividad'),
+  retorno: renderRetorno,
+  averias: renderAverias,
+  inventario_ciclico: renderInventario,
+  ocupacion_bodega: renderOcupacionCelta,
+  cantidad_ingresos: renderIngresos,
+  armado_cigarrillos: renderArmado
+};
+
+async function downloadDashboardPDF(){
+  const btn=document.getElementById('downloadPdfBtn');
+  const main=document.getElementById('main');
+  const tabs=document.getElementById('tabsNav');
+  const report=document.getElementById('pdf-report');
+  const activeTab=tabs.querySelector('button.active')?.dataset.id || CATEGORIES[currentCategory].tabs[0].id;
+  const savedFilters=new Map(Array.from(main.querySelector('.section.active')?.querySelectorAll('select')||[]).map(s=>[s.id,s.value]));
+  const oldMainNodes=Array.from(main.childNodes),oldTabNodes=Array.from(tabs.childNodes);
+  const previousCategory=currentCategory;
+  btn.disabled=true;btn.textContent='Preparando informe…';
+  main.replaceChildren();tabs.replaceChildren();report.replaceChildren();
+  const generatedAt=new Date().toLocaleString('es-CO',{dateStyle:'long',timeStyle:'short'});
+  report.insertAdjacentHTML('beforeend',`<header class="pdf-report-header"><h1>Informe de gestión operación BAT</h1><p>Transporte y Almacenamiento · Generado el ${safeCell(generatedAt)}</p></header>`);
+  document.body.classList.add('preparing-pdf');
+  const renderTasks=[];
+  for(const [categoryKey,category] of Object.entries(CATEGORIES)){
+    const categoryBlock=document.createElement('div');
+    categoryBlock.className='pdf-category';
+    const title=document.createElement('h2');title.className='pdf-category-title';title.textContent=category.label;
+    categoryBlock.appendChild(title);
+    for(const tab of category.tabs){
+      const section=document.createElement('div');
+      section.className='section active'+(renderTasks.length===0?' pdf-first':'');
+      section.id=`sec-${tab.id}`;
+      categoryBlock.appendChild(section);
+      if(RENDERERS[tab.id])renderTasks.push({id:tab.id,section});
+    }
+    report.appendChild(categoryBlock);
+  }
+  try{
+    await Promise.all(renderTasks.map(async task=>{
+      try{await RENDERERS[task.id](task.section);}
+      catch(err){task.section.innerHTML=`<div class="state error">No fue posible preparar esta sección: ${safeCell(err.message)}</div>`;}
+    }));
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    Object.values(charts).filter(chart=>chart.canvas?.isConnected).forEach(chart=>chart.resize());
+    const restore=()=>{
+      document.body.classList.remove('preparing-pdf');
+      report.replaceChildren();
+      main.replaceChildren(...oldMainNodes);tabs.replaceChildren(...oldTabNodes);
+      currentCategory=previousCategory;
+      btn.disabled=false;btn.textContent='⬇ Descargar informe PDF';
+      const activeSection=main.querySelector(`#sec-${activeTab}`);
+      if(activeSection&&RENDERERS[activeTab]){
+        Promise.resolve(RENDERERS[activeTab](activeSection)).then(()=>{
+          savedFilters.forEach((value,id)=>{
+            const select=document.getElementById(id);
+            if(select&&Array.from(select.options).some(option=>option.value===value)){
+              select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));
+            }
+          });
+        });
+      }
+    };
+    window.addEventListener('afterprint',restore,{once:true});
+    window.print();
+  }catch(err){
+    document.body.classList.remove('preparing-pdf');
+    report.replaceChildren();main.replaceChildren(...oldMainNodes);tabs.replaceChildren(...oldTabNodes);
+    currentCategory=previousCategory;btn.disabled=false;btn.textContent='⬇ Descargar informe PDF';
+    alert(`No se pudo preparar el informe PDF: ${err.message}`);
+  }
+}
+
+// ================= GESTIÓN DE CATEGORÍAS Y PEAÑAS =================
+
+function switchCategory(catKey){
+  currentCategory = catKey;
+  
+  document.getElementById('btnCatTransporte').classList.toggle('active', catKey === 'transporte');
+  document.getElementById('btnCatAlmacenamiento').classList.toggle('active', catKey === 'almacenamiento');
+  
+  renderTabs();
+}
+
+function renderTabs(){
+  const tabsNav = document.getElementById('tabsNav');
+  const mainEl = document.getElementById('main');
+  
+  tabsNav.innerHTML = '';
+  mainEl.innerHTML = '';
+  
+  const currentTabs = CATEGORIES[currentCategory].tabs;
+  
+  currentTabs.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = t.label;
+    btn.dataset.id = t.id;
+    if(i === 0) btn.classList.add('active');
+    btn.addEventListener('click', () => activateTab(t.id));
+    tabsNav.appendChild(btn);
+    
+    const sec = document.createElement('div');
+    sec.className = 'section' + (i === 0 ? ' active' : '');
+    sec.id = 'sec-' + t.id;
+    mainEl.appendChild(sec);
+  });
+  
+  if(currentTabs.length > 0){
+    activateTab(currentTabs[0].id);
+  }
+}
+
+function activateTab(tabId){
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.id === tabId));
+  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'sec-' + tabId));
+  
+  if(RENDERERS[tabId]){
+    RENDERERS[tabId](document.getElementById('sec-' + tabId));
+  }
+}
+
+// ================= CARGA DE ARCHIVO EXCEL =================
+
+function loadWorkbook(file, source){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    try{
+      const workbook=XLSX.read(new Uint8Array(evt.target.result),{type:'array',cellDates:true});
+      localWorkbookData[source]={};localWorkbookNames[source]=workbook.SheetNames;
+      const parsedSheets=workbook.SheetNames.map((name,index)=>({name,normalized:name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),rows:worksheetRows(workbook.Sheets[name],index)}));
+      const findSheet=(...terms)=>parsedSheets.find(s=>terms.every(t=>s.normalized.includes(t)));
+      if(source==='transporte'){
+        const canonical=[
+          findSheet('indicador general'), findSheet('ontime'),
+          parsedSheets.find(s=>s.normalized.includes('infull')&&!s.normalized.includes('detalle')),
+          findSheet('efectividad'), findSheet('retorno documental'),
+          findSheet('ocupacion'), findSheet('averias'), findSheet('detalle','infull')
+        ];
+        canonical.forEach((s,i)=>{if(s)localWorkbookData[source][i]=s.rows;});
+      }else{
+        const canonical=[findSheet('inventario ciclico'),findSheet('ocupacion'),findSheet('cantidad ingresos'),findSheet('armado cigarrillo')];
+        canonical.forEach((s,i)=>{if(s)localWorkbookData[source][i]=s.rows;});
+      }
+      document.getElementById(source==='transporte'?'transportSync':'storageSync').textContent='Cargado: '+file.name;
+      const expected=source==='transporte'?['indicador general','ontime','infull','efectividad','retorno documental','ocupacion','averias']:['inventario ciclico','ocupacion','cantidad ingresos','armado cigarrillo'];
+      const actual=parsedSheets.map(s=>s.normalized);
+      const missing=expected.filter(label=>!actual.some(name=>name.includes(label)));
+      if(missing.length)console.warn(`Faltan pestañas esperadas en el libro ${source}:`,missing);
+      const activeBtn=document.querySelector('nav.tabs button.active');
+      if(activeBtn){const id=activeBtn.dataset.id;const isStorage=CATEGORIES.almacenamiento.tabs.some(t=>t.id===id);if((source==='almacenamiento')===isStorage)RENDERERS[id](document.getElementById('sec-'+id));}
+    }catch(err){document.getElementById(source==='transporte'?'transportSync':'storageSync').textContent='Error al leer el Excel';console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+document.getElementById('transportFile').addEventListener('change',e=>loadWorkbook(e.target.files[0],'transporte'));
+document.getElementById('storageFile').addEventListener('change',e=>loadWorkbook(e.target.files[0],'almacenamiento'));
+
+// Inicializar vista predeterminada
+switchCategory('transporte');
+</script>
+</body>
+</html>
