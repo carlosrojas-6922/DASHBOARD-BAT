@@ -828,7 +828,8 @@ async function renderHubMetric(container, kind){
     <div class="kpi-row" id="${kind}-kpis"></div>
     <div class="card"><h3>Bogotá — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-bogota"></canvas></div></div>
     <div class="card"><h3>Cundinamarca — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-sabana"></canvas></div></div>
-    <div class="card"><h3>Órdenes por canal y mes — consolidado Bogotá + Cundinamarca</h3><div class="chart-wrap full"><canvas id="${kind}-channel-chart"></canvas></div></div>
+    <div class="card"><h3>Bogotá — órdenes Ontime/In Full/Efectividad por canal y mes</h3><div class="chart-wrap full"><canvas id="${kind}-bogota-channel"></canvas></div></div>
+    <div class="card"><h3>Cundinamarca — órdenes Ontime/In Full/Efectividad por canal y mes</h3><div class="chart-wrap full"><canvas id="${kind}-sabana-channel"></canvas></div></div>
     <div class="card pdf-breakable"><h3>Detalle de órdenes afectadas — ${cfg.title}</h3><div id="${kind}-detail"></div></div>`;
   function draw(month){
     const filtered=rows.filter(r=>month==='__all'||canonicalMonth(r[monthKey])===month);
@@ -853,22 +854,25 @@ async function renderHubMetric(container, kind){
       `<div class="kpi"><div class="label">${x.hub} · ${cfg.series}</div><div class="value" style="color:#1A7A3C">${x.rate===null?'—':(x.rate*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div>`,
       `<div class="kpi"><div class="label">${x.hub} · ${cfg.badLabel}</div><div class="value neutral">${fmtNum(x.bad)}</div></div>`
     ]).join('');
-    const channelGroups={};
-    filtered.forEach(r=>{
-      const channel=String(r[channelKey]??'').trim().toLocaleUpperCase('es-CO');
-      const m=canonicalMonth(r[monthKey]);if(!m||!channel)return;
-      const group=channelGroups[`${m}|${channel}`]||(channelGroups[`${m}|${channel}`]={month:m,channel,good:0,bad:0});
-      for(const hub of ['bogota','sabana']){
-        const goodKey=pick(cfg.good,hub),badKey=pick(cfg.late,hub);
-        group.good+=parseNum(r[goodKey])||0;group.bad+=parseNum(r[badKey])||0;
-      }
-    });
     const channelOrder=['CEDIS','MAYORISTAS','PAP'];
-    const channelRows=Object.values(channelGroups).sort((a,b)=>monthIndex(a.month)-monthIndex(b.month)||(channelOrder.indexOf(a.channel)-channelOrder.indexOf(b.channel)));
-    makeChart(`${kind}-channel-chart`,{type:'bar',data:{labels:channelRows.map(x=>[x.month,x.channel]),datasets:[
-      {label:cfg.countLabel,data:channelRows.map(x=>x.good),backgroundColor:cfg.positive,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#E6F4EA',color:'#14532D',borderRadius:4,padding:4,anchor:'end',align:'top',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}},
-      {label:cfg.badLabel,data:channelRows.map(x=>x.bad),backgroundColor:cfg.negative,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:4,anchor:'end',align:'top',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Cantidad de órdenes'},ticks:{callback:v=>fmtNum(v)}}}}});
+    [{id:'bogota',label:'Bogotá'},{id:'sabana',label:'Cundinamarca'}].forEach(h=>{
+      const goodKey=pick(cfg.good,h.id),badKey=pick(cfg.late,h.id);
+      const channelGroups={};
+      filtered.forEach(r=>{
+        const channel=String(r[channelKey]??'').trim().toLocaleUpperCase('es-CO');
+        const m=canonicalMonth(r[monthKey]);if(!m||!channel)return;
+        const group=channelGroups[`${m}|${channel}`]||(channelGroups[`${m}|${channel}`]={month:m,channel,good:0,bad:0});
+        group.good+=parseNum(r[goodKey])||0;
+        group.bad+=parseNum(r[badKey])||0;
+      });
+      const channelRows=Object.values(channelGroups).sort((a,b)=>monthIndex(a.month)-monthIndex(b.month)||(channelOrder.indexOf(a.channel)-channelOrder.indexOf(b.channel)));
+      const rates=channelRows.map(x=>x.good+x.bad?(x.good/(x.good+x.bad))*100:null);
+      makeChart(`${kind}-${h.id}-channel`,{type:'bar',data:{labels:channelRows.map(x=>[x.month,x.channel]),datasets:[
+        {label:cfg.countLabel,data:channelRows.map(x=>x.good),backgroundColor:cfg.positive,borderRadius:4,yAxisID:'y',order:2,datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:4,anchor:'center',align:'center',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}},
+        {label:cfg.badLabel,data:channelRows.map(x=>x.bad),backgroundColor:cfg.negative,borderRadius:4,yAxisID:'y',order:2,datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:4,anchor:'end',align:'top',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}},
+        {label:cfg.series,data:rates,type:'line',borderColor:cfg.positive,backgroundColor:cfg.positive,borderWidth:3,tension:.3,pointRadius:5,pointBackgroundColor:cfg.positive,yAxisID:'y1',order:1,datalabels:{display:ctx=>ctx.raw!==null,backgroundColor:cfg.positive,color:'#fff',borderRadius:4,padding:4,anchor:'end',align:'top',offset:8,font:{size:9,weight:'700'},formatter:v=>`${v.toFixed(2)}%`}}
+      ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},datalabels:{clip:false,clamp:true}},scales:{y:{beginAtZero:true,title:{display:true,text:'Cantidad de órdenes'},ticks:{callback:v=>fmtNum(v)}},y1:{beginAtZero:true,max:110,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v<=100?`${v}%`:''},title:{display:true,text:cfg.series}}}}});
+    });
     const selectedDetails=detailRows.filter(r=>month==='__all'||detailMonth(r)===month).sort((a,b)=>{
       const parseDate=v=>{const m=String(v??'').match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);return m?new Date(Number(m[3]),Number(m[2])-1,Number(m[1])).getTime():new Date(v).getTime();};
       return (parseDate(a[detailDateKey])||0)-(parseDate(b[detailDateKey])||0);
@@ -905,7 +909,7 @@ async function renderSobrecostos(container){
     const clients=Object.entries(byClient).sort((a,b)=>b[1].total-a[1].total).slice(0,12).map(([client])=>client);
     const periods=period==='__all'?months:[period];
     const wrap=document.getElementById('sobrecostos-chart-wrap');wrap.style.height=`${Math.max(330,clients.length*36+95)}px`;
-    makeChart('sobrecostos-chart',{type:'bar',data:{labels:clients,datasets:periods.map((m,i)=>({label:m,data:clients.map(client=>byClient[client]?.byMonth[m]||0),backgroundColor:PALETTE[i%PALETTE.length],borderRadius:4,maxBarThickness:22,datalabels:{display:ctx=>ctx.raw>0,anchor:'end',align:'right',offset:3,color:'#26364F',font:{size:9,weight:'700'},formatter:v=>fmtCOP(v)}}))},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`}}},scales:{x:{beginAtZero:true,ticks:{callback:v=>fmtCOP(v)},title:{display:true,text:'Sobrecosto (COP)'}},y:{ticks:{autoSkip:false}}}}});
+    makeChart('sobrecostos-chart',{type:'bar',data:{labels:clients,datasets:periods.map((m,i)=>({label:m,data:clients.map(client=>byClient[client]?.byMonth[m]||0),backgroundColor:PALETTE[i%PALETTE.length],borderRadius:4,maxBarThickness:22,datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#EAF2FF',color:'#003087',borderRadius:4,padding:{top:3,bottom:3,left:5,right:5},anchor:'end',align:'right',offset:5,clip:false,font:{size:9,weight:'700'},formatter:v=>fmtCOP(v)}}))},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:105}},interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},datalabels:{clip:false,clamp:true},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtCOP(ctx.raw)} COP`}}},scales:{x:{beginAtZero:true,ticks:{callback:v=>fmtCOP(v)},title:{display:true,text:'Sobrecosto (COP)'}},y:{ticks:{autoSkip:false}}}}});
     document.getElementById('sobrecostos-table').innerHTML=filtered.length?dataTable(filtered,keys):'<div class="state">No hay registros para el periodo seleccionado.</div>';
   }
   draw('__all');monthSelector('sobrecostos-filter',months,draw);
@@ -934,7 +938,7 @@ async function renderHorasExtras(container){
     document.getElementById('horas-extras-kpis').innerHTML=`<div class="kpi" style="border-top:4px solid #0057B8"><div class="label">Horas reportadas en J–M</div><div class="value neutral">${fmtNum(totalHours)}</div></div><div class="kpi" style="border-top:4px solid #D0021B"><div class="label">Valor total de horas extra</div><div class="value neutral">${fmtCOP(totalValue)}</div></div>`;
     const datasets=hourDefs.filter(d=>d.column).map(d=>({label:d.label,data:labels.map(m=>byMonth[m][d.key]),backgroundColor:d.color,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:4,anchor:'center',align:'center',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}}));
     datasets.push({label:'Valor total (COP)',data:labels.map(m=>byMonth[m].total),type:'line',borderColor:'#D0021B',backgroundColor:'#D0021B',borderWidth:3,tension:.3,pointRadius:5,pointBackgroundColor:'#D0021B',yAxisID:'y1',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:4,anchor:'end',align:'top',offset:7,font:{size:9,weight:'700'},formatter:v=>fmtCOP(v)}});
-    makeChart('horas-extras-chart',{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'?`${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`:`${ctx.dataset.label}: ${fmtNum(ctx.raw)} h`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'Horas realizadas'},ticks:{callback:v=>fmtNum(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Valor (COP)'},ticks:{callback:v=>fmtCOP(v)}}}}});
+    makeChart('horas-extras-chart',{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:30,right:28}},interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},datalabels:{clip:false,clamp:true},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'?`${ctx.dataset.label}: ${fmtCOP(ctx.raw)} COP`:`${ctx.dataset.label}: ${fmtNum(ctx.raw)} h`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'Horas realizadas'},ticks:{callback:v=>fmtNum(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Valor (COP)'},ticks:{callback:v=>fmtCOP(v)}}}}});
   }
   draw('__all');monthSelector('horas-extras-filter',months,draw);
 }
