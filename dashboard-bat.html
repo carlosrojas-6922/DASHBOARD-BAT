@@ -255,7 +255,8 @@ const CATEGORIES = {
       { id: 'infull',              label: '1.2 In Full',              sheetIndex: 2 },
       { id: 'efectividad',         label: '1.3 % Efectividad',         sheetIndex: 3 },
       { id: 'retorno',             label: '1.4 % Retorno Documental',  sheetIndex: 4 },
-      { id: 'averias',             label: '1.5 Averías / Hurtos', sheetIndex: 6 }
+      { id: 'averias',             label: '1.5 Averías / Hurtos', sheetIndex: 6 },
+      { id: 'sobrecostos',         label: '1.6 Sobre Costos',          sheetIndex: 10 }
     ]
   },
   almacenamiento: {
@@ -264,7 +265,8 @@ const CATEGORIES = {
       { id: 'inventario_ciclico',  label: '2.1 % Inventario Cíclico', sheetIndex: 0 },
       { id: 'ocupacion_bodega',    label: '2.2 % Ocupación Bodega Día Celta', sheetIndex: 1 },
       { id: 'cantidad_ingresos',   label: '2.3 Cantidad de Ingresos', sheetIndex: 2 },
-      { id: 'armado_cigarrillos', label: '2.4 Armado Cigarrillos Celta', sheetIndex: 3 }
+      { id: 'armado_cigarrillos', label: '2.4 Armado Cigarrillos Celta', sheetIndex: 3 },
+      { id: 'horas_extras',       label: '2.5 Horas extras personal', sheetIndex: 11 }
     ]
   }
 };
@@ -369,6 +371,13 @@ function monthFromDate(value){
   const parsed=new Date(s);
   return isNaN(parsed)?'':FULL_MONTHS[parsed.getMonth()];
 }
+function monthFromSpanishDate(value){
+  if(value instanceof Date&&!isNaN(value))return FULL_MONTHS[value.getMonth()];
+  const s=String(value??'').trim();
+  const m=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if(m)return FULL_MONTHS[Number(m[2])-1]||'';
+  return monthFromDate(value);
+}
 function canonicalMonth(value){
   const s=String(value??'').trim().toLowerCase();
   const index=MONTH_ORDER.findIndex(m=>s.startsWith(m.slice(0,3)));
@@ -381,6 +390,10 @@ function worksheetRows(ws, sheetIndex){
   if(headerIndex<0) headerIndex=matrix.findIndex(row=>{
     const cells=row.map(v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim());
     return cells.includes('fecha') && cells.includes('hub') && cells.some(v=>v.includes('orden de venta'));
+  });
+  if(headerIndex<0) headerIndex=matrix.findIndex(row=>{
+    const cells=row.map(v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim());
+    return cells.includes('fecha') && cells.includes('total') && cells.some(v=>v.includes('diurnas')) && cells.some(v=>v.includes('nocturnas'));
   });
   if(headerIndex<0) return [];
   const rawHeaders=matrix[headerIndex];
@@ -412,9 +425,13 @@ const PUBLISHED_SHEETS={
       {index:2,gid:'1110150784',name:'% Infull'},
       {index:7,gid:'1237360999',name:'Detalle Infull'},
       {index:3,gid:'374847431',name:'% Efectividad'},
+      {index:8,gid:'554523788',name:'Detalle Ontime'},
+      {index:9,gid:'925183963',name:'Detalle Efectividad'},
       {index:4,gid:'2061749740',name:'% Retorno documental'},
       {index:5,gid:'758399382',name:'% Ocupación vehicular'},
-      {index:6,gid:'1894820028',name:'Averías / Hurtos'}
+      {index:6,gid:'1894820028',name:'Averías / Hurtos'},
+      {index:10,gid:'119979985',name:'Indicador sobrecostos'},
+      {index:11,gid:'430766766',name:'Horas extras'}
     ]
   },
   almacenamiento:{
@@ -423,7 +440,8 @@ const PUBLISHED_SHEETS={
       {index:0,gid:'0',name:'Inventario cíclico'},
       {index:1,gid:'69258331',name:'% Ocupación bodega día Celta'},
       {index:2,gid:'754815625',name:'Cantidad ingresos'},
-      {index:3,gid:'1782333461',name:'Armado cigarrillo Celta'}
+      {index:3,gid:'1782333461',name:'Armado cigarrillo Celta'},
+      {index:11,gid:'430766766',name:'Horas extras',base:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQpBOuVF4QhZe1_PHMW9I-NVIyQ90EtOnkgl64STbH3tJupebUigPjAlqQp0RlIbBShFSc4VFUhMkCX/pub?output=csv&gid='}
     ]
   }
 };
@@ -435,21 +453,11 @@ async function loadPublishedSheets(source){
   status.textContent='Conectando con Google Sheets…';
   try{
     if(location.protocol==='file:')throw new Error('Este HTML está abierto como archivo local. Ábrelo con “Abrir dashboard BAT.bat” para conectar Google Sheets.');
-    const localServer=['127.0.0.1','localhost'].includes(location.hostname);
-    let csvSheets;
-    if(localServer){
-      const response=await fetch(`/api/google-sheets?source=${encodeURIComponent(source)}`,{cache:'no-store'});
-      if(!response.ok)throw new Error(`Servidor local: respuesta HTTP ${response.status}`);
-      const payload=await response.json();
-      if(payload.error)throw new Error(payload.error);
-      csvSheets=payload.sheets;
-    }else{
-      csvSheets=await Promise.all(config.sheets.map(async sheet=>{
-        const response=await fetch(config.base+encodeURIComponent(sheet.gid),{mode:'cors',credentials:'omit',cache:'no-store'});
-        if(!response.ok)throw new Error(`${sheet.name}: respuesta HTTP ${response.status}`);
-        return {...sheet,csv:await response.text()};
-      }));
-    }
+    const response=await fetch(`/api/google-sheets?source=${encodeURIComponent(source)}`,{cache:'no-store'});
+    if(!response.ok)throw new Error(`Servidor de datos: respuesta HTTP ${response.status}`);
+    const payload=await response.json();
+    if(payload.error)throw new Error(payload.error);
+    const csvSheets=payload.sheets;
     const loaded=csvSheets.map(sheet=>{
       const csv=sheet.csv;
       const parsed=Papa.parse(csv,{skipEmptyLines:false});
@@ -801,26 +809,27 @@ async function renderRetorno(container){
 
 async function renderHubMetric(container, kind){
   const cfg={
-    ontime:{index:1,title:'1.1 Ontime',rate:'% Ontime',late:'Entregas fuera de tiempo',good:'Entregas a tiempo',countLabel:'Entregas',badLabel:'Entregas fuera de tiempo',series:'% Ontime'},
-    infull:{index:2,title:'1.2 In Full',rate:'% Infull',late:'Entregas con novedad',good:'Entregas completas',countLabel:'Entregas completas',badLabel:'Entregas con novedad',series:'% In Full'},
-    efectividad:{index:3,title:'1.3 % Efectividad',rate:'% Efectividad',late:'Entregas no efectivas',good:'Entregas efectivas',countLabel:'Entregas efectivas',badLabel:'Entregas no efectivas',series:'% Efectividad'}
+    ontime:{index:1,detailIndex:8,title:'1.1 Ontime',rate:'% Ontime',late:'Entregas fuera de tiempo',good:'Entregas a tiempo',countLabel:'Entregas a tiempo',badLabel:'Entregas fuera de tiempo',series:'% Ontime',positive:'#1A7A3C',negative:'#D0021B'},
+    infull:{index:2,detailIndex:7,title:'1.2 In Full',rate:'% Infull',late:'Entregas con novedad',good:'Entregas completas',countLabel:'Entregas completas',badLabel:'Entregas con novedad',series:'% In Full',positive:'#0057B8',negative:'#F28C28'},
+    efectividad:{index:3,detailIndex:9,title:'1.3 % Efectividad',rate:'% Efectividad',late:'Entregas no efectivas',good:'Entregas efectivas',countLabel:'Entregas efectivas',badLabel:'Entregas no efectivas',series:'% Efectividad',positive:'#1A7A3C',negative:'#D0021B'}
   }[kind];
   const rows=await getSheetData(cfg.index);
   if(!rows.length){container.innerHTML='<div class="state">Cargue el archivo Excel para consultar este indicador.</div>';return;}
-  const detailRows=kind==='infull'?await getSheetData(7):[];
+  const detailRows=await getSheetData(cfg.detailIndex);
   const detailKeys=detailRows.length?Object.keys(detailRows[0]):[];
   const detailDateKey=detailRows.length?findKey(detailRows[0],'fecha'):null;
   const detailMonthKey=detailRows.length?findKey(detailRows[0],'mes'):null;
-  const detailMonth=r=>detailMonthKey&&r[detailMonthKey]?canonicalMonth(r[detailMonthKey]):monthFromDate(r[detailDateKey]);
+  const detailMonth=r=>detailMonthKey&&r[detailMonthKey]?canonicalMonth(r[detailMonthKey]):monthFromSpanishDate(r[detailDateKey]);
   const keys=Object.keys(rows[0]);
   const pick=(name,hub)=>keys.find(k=>k.toLowerCase().startsWith(name.toLowerCase()) && (hub==='bogota'?!/_\d+$/.test(k):/_\d+$/.test(k)));
-  const monthKey=findKey(rows[0],'mes');
+  const monthKey=findKey(rows[0],'mes'),channelKey=findKey(rows[0],'canal');
   const months=[...new Set([...rows.map(r=>canonicalMonth(r[monthKey])),...detailRows.map(detailMonth)].filter(Boolean))].sort((a,b)=>monthIndex(a)-monthIndex(b));
   container.innerHTML=`<div class="section-head"><div><div class="eyebrow">1. Transporte</div><h2>${cfg.title}</h2></div><div class="controls" id="${kind}-filter"></div></div>
     <div class="kpi-row" id="${kind}-kpis"></div>
     <div class="card"><h3>Bogotá — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-bogota"></canvas></div></div>
     <div class="card"><h3>Cundinamarca — ${cfg.title} por mes</h3><div class="chart-wrap full"><canvas id="${kind}-sabana"></canvas></div></div>
-    ${kind==='infull'?`<div class="card pdf-breakable"><h3>Detalle de órdenes afectadas — In Full</h3><div id="infull-detail"></div></div>`:''}`;
+    <div class="card"><h3>Órdenes por canal y mes — consolidado Bogotá + Cundinamarca</h3><div class="chart-wrap full"><canvas id="${kind}-channel-chart"></canvas></div></div>
+    <div class="card pdf-breakable"><h3>Detalle de órdenes afectadas — ${cfg.title}</h3><div id="${kind}-detail"></div></div>`;
   function draw(month){
     const filtered=rows.filter(r=>month==='__all'||canonicalMonth(r[monthKey])===month);
     const hubs=[{id:'bogota',suffix:false},{id:'sabana',suffix:true}];
@@ -844,25 +853,90 @@ async function renderHubMetric(container, kind){
       `<div class="kpi"><div class="label">${x.hub} · ${cfg.series}</div><div class="value" style="color:#1A7A3C">${x.rate===null?'—':(x.rate*100).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}</div></div>`,
       `<div class="kpi"><div class="label">${x.hub} · ${cfg.badLabel}</div><div class="value neutral">${fmtNum(x.bad)}</div></div>`
     ]).join('');
-    if(kind==='infull'){
-      const selectedDetails=detailRows.filter(r=>month==='__all'||detailMonth(r)===month).sort((a,b)=>{
-        const da=new Date(a[detailDateKey]),db=new Date(b[detailDateKey]);return (isNaN(da)?0:da.getTime())-(isNaN(db)?0:db.getTime());
-      });
-      const dateText=value=>{
-        if(value instanceof Date&&!isNaN(value))return value.toLocaleDateString('es-CO');
-        const s=String(value??'').trim(),m=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-        if(!m)return s.toLocaleUpperCase('es-CO');
-        const first=Number(m[1]),second=Number(m[2]),monthNum=first>12?second:first,day=first>12?first:second;
-        let year=Number(m[3]);if(year<100)year+=2000;
-        return `${String(day).padStart(2,'0')}/${String(monthNum).padStart(2,'0')}/${year}`;
-      };
-      const detailHost=document.getElementById('infull-detail');
-      if(!detailRows.length)detailHost.innerHTML='<div class="state">El archivo cargado no contiene la pestaña “Detalle Infull”.</div>';
-      else if(!selectedDetails.length)detailHost.innerHTML='<div class="state">No hay órdenes afectadas para el periodo seleccionado.</div>';
-      else detailHost.innerHTML=`<div class="table-scroll"><table class="detail-table"><thead><tr>${detailKeys.map(k=>`<th>${safeCell(k.toLocaleUpperCase('es-CO'))}</th>`).join('')}</tr></thead><tbody>${selectedDetails.map(r=>`<tr>${detailKeys.map(k=>`<td>${safeCell(k===detailDateKey?dateText(r[k]):String(r[k]??'').toLocaleUpperCase('es-CO'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-    }
+    const channelGroups={};
+    filtered.forEach(r=>{
+      const channel=String(r[channelKey]??'').trim().toLocaleUpperCase('es-CO');
+      const m=canonicalMonth(r[monthKey]);if(!m||!channel)return;
+      const group=channelGroups[`${m}|${channel}`]||(channelGroups[`${m}|${channel}`]={month:m,channel,good:0,bad:0});
+      for(const hub of ['bogota','sabana']){
+        const goodKey=pick(cfg.good,hub),badKey=pick(cfg.late,hub);
+        group.good+=parseNum(r[goodKey])||0;group.bad+=parseNum(r[badKey])||0;
+      }
+    });
+    const channelOrder=['CEDIS','MAYORISTAS','PAP'];
+    const channelRows=Object.values(channelGroups).sort((a,b)=>monthIndex(a.month)-monthIndex(b.month)||(channelOrder.indexOf(a.channel)-channelOrder.indexOf(b.channel)));
+    makeChart(`${kind}-channel-chart`,{type:'bar',data:{labels:channelRows.map(x=>[x.month,x.channel]),datasets:[
+      {label:cfg.countLabel,data:channelRows.map(x=>x.good),backgroundColor:cfg.positive,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#E6F4EA',color:'#14532D',borderRadius:4,padding:4,anchor:'end',align:'top',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}},
+      {label:cfg.badLabel,data:channelRows.map(x=>x.bad),backgroundColor:cfg.negative,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:4,anchor:'end',align:'top',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Cantidad de órdenes'},ticks:{callback:v=>fmtNum(v)}}}}});
+    const selectedDetails=detailRows.filter(r=>month==='__all'||detailMonth(r)===month).sort((a,b)=>{
+      const parseDate=v=>{const m=String(v??'').match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);return m?new Date(Number(m[3]),Number(m[2])-1,Number(m[1])).getTime():new Date(v).getTime();};
+      return (parseDate(a[detailDateKey])||0)-(parseDate(b[detailDateKey])||0);
+    });
+    const dateText=value=>{
+      const s=String(value??'').trim(),m=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+      if(!m)return value instanceof Date&&!isNaN(value)?value.toLocaleDateString('es-CO'):s.toLocaleUpperCase('es-CO');
+      let year=Number(m[3]);if(year<100)year+=2000;
+      return `${String(m[1]).padStart(2,'0')}/${String(m[2]).padStart(2,'0')}/${year}`;
+    };
+    const detailHost=document.getElementById(`${kind}-detail`);
+    if(!detailRows.length)detailHost.innerHTML=`<div class="state">No se recibió la pestaña de detalle asociada a ${cfg.title}.</div>`;
+    else if(!selectedDetails.length)detailHost.innerHTML='<div class="state">No hay órdenes afectadas para el periodo seleccionado.</div>';
+    else detailHost.innerHTML=`<div class="table-scroll"><table class="detail-table"><thead><tr>${detailKeys.map(k=>`<th>${safeCell(k.toLocaleUpperCase('es-CO'))}</th>`).join('')}</tr></thead><tbody>${selectedDetails.map(r=>`<tr>${detailKeys.map(k=>`<td>${safeCell(k===detailDateKey?dateText(r[k]):String(r[k]??'').toLocaleUpperCase('es-CO'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   draw('__all');monthSelector(`${kind}-filter`,months,draw);
+}
+
+async function renderSobrecostos(container){
+  const rows=await getSheetData(10,'transporte');
+  if(!rows.length){container.innerHTML='<div class="state">No se recibió la pestaña “Indicador sobrecostos”. Actualice Transporte desde Google Sheets.</div>';return;}
+  const monthKey=findKey(rows[0],'mes'),clientKey=findKey(rows[0],'cliente'),valueKey=findKey(rows[0],'valor');
+  if(!monthKey||!clientKey||!valueKey){container.innerHTML='<div class="state error">La pestaña de sobrecostos debe incluir Mes, Cliente y Valor.</div>';return;}
+  const valid=rows.filter(r=>r[monthKey]&&r[clientKey]&&parseNum(r[valueKey])!==null);
+  const months=[...new Set(valid.map(r=>canonicalMonth(r[monthKey])))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+  const keys=Object.keys(rows[0]);
+  container.innerHTML=`<div class="section-head"><div><div class="eyebrow">1. Transporte</div><h2>1.6 Sobre Costos</h2></div><div class="controls" id="sobrecostos-filter"></div></div><div class="kpi-row" id="sobrecostos-kpis"></div><div class="card"><h3>Sobrecostos por cliente y mes</h3><p style="color:var(--muted);font-size:11px;margin:0 0 8px">Barras horizontales · clientes con mayor valor en el periodo seleccionado</p><div id="sobrecostos-chart-wrap" class="chart-wrap full"><canvas id="sobrecostos-chart"></canvas></div></div><div class="card"><h3>Detalle de registros</h3><div id="sobrecostos-table"></div></div>`;
+  function draw(period){
+    const filtered=valid.filter(r=>period==='__all'||canonicalMonth(r[monthKey])===period);
+    const total=filtered.reduce((sum,r)=>sum+(parseNum(r[valueKey])||0),0);
+    document.getElementById('sobrecostos-kpis').innerHTML=`<div class="kpi" style="border-top:4px solid #D0021B"><div class="label">Sobrecosto acumulado</div><div class="value neutral">${fmtCOP(total)}</div></div><div class="kpi" style="border-top:4px solid #0057B8"><div class="label">Registros en el periodo</div><div class="value neutral">${fmtNum(filtered.length)}</div></div><div class="kpi" style="border-top:4px solid #00A3E0"><div class="label">Clientes afectados</div><div class="value neutral">${fmtNum(new Set(filtered.map(r=>String(r[clientKey]).trim())).size)}</div></div>`;
+    const byClient={};
+    filtered.forEach(r=>{const client=String(r[clientKey]).trim();const month=canonicalMonth(r[monthKey]);const x=byClient[client]||(byClient[client]={total:0,byMonth:{}});const amount=parseNum(r[valueKey])||0;x.total+=amount;x.byMonth[month]=(x.byMonth[month]||0)+amount;});
+    const clients=Object.entries(byClient).sort((a,b)=>b[1].total-a[1].total).slice(0,12).map(([client])=>client);
+    const periods=period==='__all'?months:[period];
+    const wrap=document.getElementById('sobrecostos-chart-wrap');wrap.style.height=`${Math.max(330,clients.length*36+95)}px`;
+    makeChart('sobrecostos-chart',{type:'bar',data:{labels:clients,datasets:periods.map((m,i)=>({label:m,data:clients.map(client=>byClient[client]?.byMonth[m]||0),backgroundColor:PALETTE[i%PALETTE.length],borderRadius:4,maxBarThickness:22,datalabels:{display:ctx=>ctx.raw>0,anchor:'end',align:'right',offset:3,color:'#26364F',font:{size:9,weight:'700'},formatter:v=>fmtCOP(v)}}))},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`}}},scales:{x:{beginAtZero:true,ticks:{callback:v=>fmtCOP(v)},title:{display:true,text:'Sobrecosto (COP)'}},y:{ticks:{autoSkip:false}}}}});
+    document.getElementById('sobrecostos-table').innerHTML=filtered.length?dataTable(filtered,keys):'<div class="state">No hay registros para el periodo seleccionado.</div>';
+  }
+  draw('__all');monthSelector('sobrecostos-filter',months,draw);
+}
+
+async function renderHorasExtras(container){
+  let rows=await getSheetData(11,'almacenamiento');
+  if(!rows.length)rows=await getSheetData(11,'transporte');
+  if(!rows.length){container.innerHTML='<div class="state">No se recibieron las horas extra. Actualice Almacenamiento desde Google Sheets.</div>';return;}
+  const keys=Object.keys(rows[0]),dateKey=findKey(rows[0],'fecha'),hourDefs=[
+    {key:'diurnas',label:'Diurnas',color:'#003087'},
+    {key:'nocturnas',label:'Nocturnas',color:'#0057B8'},
+    {key:'recargo',label:'Recargo',color:'#00A3E0'},
+    {key:'recargo fst',label:'Recargo festivo',color:'#7A5CC7'}
+  ].map(def=>({...def,column:findKey(rows[0],def.key)}));
+  const totalKey=findKey(rows[0],'total');
+  const valid=rows.map(r=>({...r,__month:monthFromSpanishDate(r[dateKey])})).filter(r=>r.__month&&hourDefs.some(d=>d.column&&parseNum(r[d.column])!==null));
+  if(!valid.length){container.innerHTML='<div class="state error">No hay filas con fecha y horas para graficar en la pestaña Horas extras.</div>';return;}
+  const months=[...new Set(valid.map(r=>r.__month))].sort((a,b)=>monthIndex(a)-monthIndex(b));
+  container.innerHTML=`<div class="section-head"><div><div class="eyebrow">2. Almacenamiento</div><h2>2.5 Horas extras personal</h2></div><div class="controls" id="horas-extras-filter"></div></div><div class="kpi-row" id="horas-extras-kpis"></div><div class="card"><h3>Horas extra realizadas y valor total por mes</h3><div class="chart-wrap full"><canvas id="horas-extras-chart"></canvas></div></div>`;
+  function draw(period){
+    const selected=valid.filter(r=>period==='__all'||r.__month===period),byMonth={};
+    selected.forEach(r=>{const m=r.__month;const x=byMonth[m]||(byMonth[m]={n:0,total:0,...Object.fromEntries(hourDefs.map(d=>[d.key,0]))});x.n++;hourDefs.forEach(d=>{if(d.column)x[d.key]+=parseNum(r[d.column])||0;});if(totalKey)x.total+=parseNum(r[totalKey])||0;});
+    const labels=Object.keys(byMonth).sort((a,b)=>monthIndex(a)-monthIndex(b));
+    const totalHours=hourDefs.reduce((sum,d)=>sum+labels.reduce((s,m)=>s+byMonth[m][d.key],0),0),totalValue=labels.reduce((sum,m)=>sum+byMonth[m].total,0);
+    document.getElementById('horas-extras-kpis').innerHTML=`<div class="kpi" style="border-top:4px solid #0057B8"><div class="label">Horas reportadas en J–M</div><div class="value neutral">${fmtNum(totalHours)}</div></div><div class="kpi" style="border-top:4px solid #D0021B"><div class="label">Valor total de horas extra</div><div class="value neutral">${fmtCOP(totalValue)}</div></div>`;
+    const datasets=hourDefs.filter(d=>d.column).map(d=>({label:d.label,data:labels.map(m=>byMonth[m][d.key]),backgroundColor:d.color,borderRadius:4,yAxisID:'y',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FFF1A8',color:'#533F00',borderRadius:4,padding:4,anchor:'center',align:'center',font:{size:9,weight:'700'},formatter:v=>fmtNum(v)}}));
+    datasets.push({label:'Valor total (COP)',data:labels.map(m=>byMonth[m].total),type:'line',borderColor:'#D0021B',backgroundColor:'#D0021B',borderWidth:3,tension:.3,pointRadius:5,pointBackgroundColor:'#D0021B',yAxisID:'y1',datalabels:{display:ctx=>ctx.raw>0,backgroundColor:'#FAD6D6',color:'#8A1010',borderRadius:4,padding:4,anchor:'end',align:'top',offset:7,font:{size:9,weight:'700'},formatter:v=>fmtCOP(v)}});
+    makeChart('horas-extras-chart',{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'?`${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`:`${ctx.dataset.label}: ${fmtNum(ctx.raw)} h`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'Horas realizadas'},ticks:{callback:v=>fmtNum(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Valor (COP)'},ticks:{callback:v=>fmtCOP(v)}}}}});
+  }
+  draw('__all');monthSelector('horas-extras-filter',months,draw);
 }
 
 function safeCell(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1013,20 +1087,6 @@ async function renderCumplimientoAlm(container){
   `;
 }
 
-async function renderHorasExtras(container){
-  container.innerHTML = `
-    <div class="section-head">
-      <div><div class="eyebrow">2. Almacenamiento</div><h2>2.2 Horas Extras</h2></div>
-    </div>
-    <div class="card" style="min-height:380px;display:flex;align-items:center;justify-content:flex-start;text-align:left;">
-      <div style="text-align:left;max-width:520px;padding:30px 20px;">
-        <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#003087;margin:0 0 8px;text-transform:uppercase;text-align:left;">Módulo Horas Extras</h3>
-        <p style="color:#5A6A8A;font-size:14px;line-height:1.6;margin:0;text-align:left;">Visualización y gestión de horas extras del personal operativo de almacenamiento. Cargue la Pestaña 7 del archivo Excel para ver información detallada.</p>
-      </div>
-    </div>
-  `;
-}
-
 async function renderOcupacionBodega(container){
   container.innerHTML = `
     <div class="section-head">
@@ -1062,10 +1122,12 @@ const RENDERERS = {
   efectividad: c=>renderHubMetric(c,'efectividad'),
   retorno: renderRetorno,
   averias: renderAverias,
+  sobrecostos: renderSobrecostos,
   inventario_ciclico: renderInventario,
   ocupacion_bodega: renderOcupacionCelta,
   cantidad_ingresos: renderIngresos,
-  armado_cigarrillos: renderArmado
+  armado_cigarrillos: renderArmado,
+  horas_extras: renderHorasExtras
 };
 
 async function downloadDashboardPDF(){
@@ -1196,7 +1258,9 @@ function loadWorkbook(file, source){
           findSheet('indicador general'), findSheet('ontime'),
           parsedSheets.find(s=>s.normalized.includes('infull')&&!s.normalized.includes('detalle')),
           findSheet('efectividad'), findSheet('retorno documental'),
-          findSheet('ocupacion'), findSheet('averias'), findSheet('detalle','infull')
+          findSheet('ocupacion'), findSheet('averias'), findSheet('detalle','infull'),
+          findSheet('detalle','ontime'), findSheet('detalle','efectividad'),
+          findSheet('sobrecosto'), findSheet('horas extras')
         ];
         canonical.forEach((s,i)=>{if(s)localWorkbookData[source][i]=s.rows;});
       }else{
@@ -1204,7 +1268,7 @@ function loadWorkbook(file, source){
         canonical.forEach((s,i)=>{if(s)localWorkbookData[source][i]=s.rows;});
       }
       document.getElementById(source==='transporte'?'transportSync':'storageSync').textContent='Cargado: '+file.name;
-      const expected=source==='transporte'?['indicador general','ontime','infull','efectividad','retorno documental','ocupacion','averias']:['inventario ciclico','ocupacion','cantidad ingresos','armado cigarrillo'];
+      const expected=source==='transporte'?['indicador general','ontime','infull','efectividad','retorno documental','ocupacion','averias','detalle ontime','detalle efectividad','sobrecosto','horas extras']:['inventario ciclico','ocupacion','cantidad ingresos','armado cigarrillo'];
       const actual=parsedSheets.map(s=>s.normalized);
       const missing=expected.filter(label=>!actual.some(name=>name.includes(label)));
       if(missing.length)console.warn(`Faltan pestañas esperadas en el libro ${source}:`,missing);
